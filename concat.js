@@ -2,7 +2,7 @@ const fs = require('fs').promises
 
 async function concat() {
     const files = await fs.readdir(`${process.env.PWD}/mipssingle`)
-    const newFile = await fs.open(`${process.env.PWD}/mips-superscalar`, 'w')
+    const newFile = await fs.open(`${process.env.PWD}/mipssuperscalar.vhd`, 'w')
     files.forEach(async (file) => {
         const f = await fs.open(`${process.env.PWD}/mipssingle/${file}`, 'r')
 

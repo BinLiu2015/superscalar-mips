@@ -19,13 +19,13 @@ begin
 	begin
 		-- initialize memory from file
 		for i in 0 to 63 loop -- set all contents low
-			mem(i) := (others => '0'); 
+			mem(i) := (others => '0');
 		end loop;
-		index := 0; 
+		index := 0;
 		FILE_OPEN(mem_file, "C : /Users/agodinho/Documents/Arquitetura/memfile2.dat", READ_MODE);
 		while not endfile(mem_file) loop
 		readline(mem_file, L);
-		result := 0; 
+		result := 0;
 		for i in 1 to 8 loop
 			read(L, ch);
 			if '0' <= ch and ch <= '9' then 

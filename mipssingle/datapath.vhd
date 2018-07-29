@@ -8,10 +8,11 @@ entity datapath is -- MIPS datapath
     regwrite, jump    : in     STD_LOGIC;
     alucontrol        : in     STD_LOGIC_VECTOR(2 downto 0);
     zero              : out    STD_LOGIC;
-    pc                : buffer STD_LOGIC_VECTOR(31 downto 0);
+    pc                : in     STD_LOGIC_VECTOR(31 downto 0);
     instr             : in     STD_LOGIC_VECTOR(31 downto 0);
     aluout, writedata : buffer STD_LOGIC_VECTOR(31 downto 0);
-    readdata          : in     STD_LOGIC_VECTOR(31 downto 0));
+    readdata          : in     STD_LOGIC_VECTOR(31 downto 0);
+    pcnext            : out    STD_LOGIC_VECTOR(31 downto 0));
 end;
 
 architecture struct of datapath is
@@ -56,7 +57,7 @@ architecture struct of datapath is
       y : out STD_LOGIC_VECTOR(width-1 downto 0));
   end component;
   signal writereg : STD_LOGIC_VECTOR(4 downto 0);
-  signal pcjump, pcnext, 
+  signal pcjump, 
   pcnextbr, pcplus4, 
   pcbranch                  : STD_LOGIC_VECTOR(31 downto 0);
   signal signimm, signimmsh : STD_LOGIC_VECTOR(31 downto 0);
@@ -64,7 +65,7 @@ architecture struct of datapath is
 begin
   -- next PC logic
   pcjump <= pcplus4(31 downto 28) & instr(25 downto 0) & "00";
-    pcreg   : flopr generic map(32) port map(clk, reset, pcnext, pc); 
+    -- pcreg   : flopr generic map(32) port map(clk, reset, pcnext, pc); 
     pcadd1  : adder port map(pc, X"00000004", pcplus4);
     immsh   : sl2 port map(signimm, signimmsh);
     pcadd2  : adder port map(pcplus4, signimmsh, pcbranch);

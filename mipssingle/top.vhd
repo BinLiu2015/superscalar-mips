@@ -61,11 +61,12 @@ architecture test of top is
 	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
 
 	signal jump1: STD_LOGIC;
+	signal pcsrc1: STD_LOGIC;
 	signal regwrite: STD_LOGIC;
 begin
 	-- instantiate processor and memories
 	mips1: mips port map(clk, reset, pc, instr, '0', memwrite, dataadr, 
-		writedata, readdata, pcnext, regwrite, writereg, result, srca, jump1);
+		writedata, readdata, pcnext, regwrite, writereg, result, srca, jump1, pcsrc1);
 	imem1: imem port map(pc(7 downto 2), instr);
 	dmem1: dmem port map(clk, memwrite, dataadr, writedata, readdata);
 	pcreg: flopr generic map(32) port map(clk, reset, pcnext, pc); 

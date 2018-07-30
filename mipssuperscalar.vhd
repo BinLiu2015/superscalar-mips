@@ -1,50 +1,4 @@
 -- ==========================================================
--- aludec.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity aludec is -- ALU control decoder
-  port(funct : in STD_LOGIC_VECTOR(5 downto 0);
-    aluop      : in  STD_LOGIC_VECTOR(1 downto 0);
-    alucontrol : out STD_LOGIC_VECTOR(2 downto 0));
-end;
-
-architecture behave of aludec is
-begin
-  process(all) begin
-    case aluop is
-          when "00"     => alucontrol <= "010"; -- add (for lw/sw/addi)
-          when "01"     => alucontrol <= "110"; -- sub (for beq)
-          when "11"     => alucontrol <= "001"; -- or (for ori)
-          when others   => case funct is -- R-type instructions
-            when "100000" => alucontrol <= "010"; -- add 
-            when "100010" => alucontrol <= "110"; -- sub
-            when "100100" => alucontrol <= "000"; -- and
-            when "100101" => alucontrol <= "001"; -- or
-            when "101010" => alucontrol <= "111"; -- slt
-            when others   => alucontrol   <= "---"; -- ???
-        end case;
-    end case;
-  end process;
-end;
-
--- ==========================================================
--- adder.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all; 
-use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity adder is -- adder
-  port(a, b: in  STD_LOGIC_VECTOR(31 downto 0);
-       y:    out STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture behave of adder is
-begin
-  y <= a + b;
-end;
-
--- ==========================================================
 -- controller.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;
@@ -81,56 +35,16 @@ architecture struct of controller is
 	signal aluop          : STD_LOGIC_VECTOR(1 downto 0);
 	signal branch         : STD_LOGIC;
 	signal branchNotEqual : STD_LOGIC;
+	signal tmp_memwrite : STD_LOGIC;
+	signal tmp_regwrite : STD_LOGIC;
 begin
-		md : maindec port map(op, memtoreg, memwrite, branch,
-			alusrc, regdst, regwrite, jump, aluop, branchNotEqual);
+		md : maindec port map(op, memtoreg, tmp_memwrite, branch,
+			alusrc, regdst, tmp_regwrite, jump, aluop, branchNotEqual);
 		ad : aludec port map(funct, aluop, alucontrol);
 	
+	memwrite <= tmp_memwrite and not stall;
+	regwrite <= tmp_regwrite and not stall;
 	pcsrc <= (branch and zero) or (branchNotEqual and not zero);
-end;
-
--- ==========================================================
--- array.vhd
-
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
-package bus_multiplexer_pkg is
-        type bus_array is array(natural range <>) of std_logic_vector;
-end package;
-
-
--- ==========================================================
--- alu.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all; 
-use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity alu is 
-  port(a, b : in STD_LOGIC_VECTOR(31 downto 0);
-    alucontrol : in     STD_LOGIC_VECTOR(2 downto 0);
-    result     : buffer STD_LOGIC_VECTOR(31 downto 0);
-    zero       : out    STD_LOGIC);
-end;
-
-architecture behave of alu is
-  signal condinvb, sum : STD_LOGIC_VECTOR(31 downto 0);
-begin
-  condinvb <= not b when alucontrol(2) else b;
-  sum      <= a + condinvb + alucontrol(2);
-  
-  process(all) begin
-    case alucontrol(1 downto 0) is
-      when "00"   => result   <= a and b; 
-      when "01"   => result   <= a or b; 
-      when "10"   => result   <= sum; 
-      when "11"   => result   <= (0 => sum(31), others => '0'); 
-      when others => result <= (others => 'X'); 
-    end case;
-  end process;
-  
-  zero <= '1' when result = X"00000000" else '0';
 end;
 
 -- ==========================================================
@@ -240,122 +154,51 @@ begin
 end;
 
 -- ==========================================================
--- dmem.vhd
+-- adder.vhd
 
-library IEEE; 
-use IEEE.STD_LOGIC_1164.all; use STD.TEXTIO.all;
-use IEEE.NUMERIC_STD_UNSIGNED.all; 
+library IEEE; use IEEE.STD_LOGIC_1164.all; 
+use IEEE.NUMERIC_STD_UNSIGNED.all;
 
-entity dmem is -- data memory
-	port(clk, we: in STD_LOGIC;
-		a, wd: in  STD_LOGIC_VECTOR(31 downto 0);
-		rd   : out STD_LOGIC_VECTOR(31 downto 0));
+entity adder is -- adder
+  port(a, b: in  STD_LOGIC_VECTOR(31 downto 0);
+       y:    out STD_LOGIC_VECTOR(31 downto 0));
 end;
 
-architecture behave of dmem is
+architecture behave of adder is
 begin
-	process is
-		type ramtype is array (63 downto 0) of STD_LOGIC_VECTOR(31 downto 0);
-		variable mem: ramtype;
-	begin
-		-- read or write memory
-		loop
-			if clk'event and clk = '1' then
-				if (we = '1') then mem(to_integer(a(7 downto 2))) := wd;
-				end if;
-			end if;
-			rd <= mem(to_integer(a(7 downto 2))); 
-			wait on clk, a;
-		end loop;
-		
-	end process;
+  y <= a + b;
 end;
 
 -- ==========================================================
--- mips.vhd
+-- alu.vhd
 
-library IEEE; use IEEE.STD_LOGIC_1164.all;
+library IEEE; use IEEE.STD_LOGIC_1164.all; 
+use IEEE.NUMERIC_STD_UNSIGNED.all;
 
-entity mips is -- single cycle MIPS processor
-	port(clk, reset : in STD_LOGIC;
-		pc                : in STD_LOGIC_VECTOR(31 downto 0);
-		instr             : in  STD_LOGIC_VECTOR(31 downto 0);
-		stall			  : in STD_LOGIC;
-		memwrite          : out STD_LOGIC;
-		aluout			  : out STD_LOGIC_VECTOR(31 downto 0);
-		writedata		  : in  STD_LOGIC_VECTOR(31 downto 0);
-		readdata          : in  STD_LOGIC_VECTOR(31 downto 0);
-		pcnext            : out STD_LOGIC_VECTOR(31 downto 0);
-		regwrite          : out STD_LOGIC;
-		writereg          : out STD_LOGIC_VECTOR(4 downto 0);
-		result	          : out STD_LOGIC_VECTOR(31 downto 0);
-		srca              : in  STD_LOGIC_VECTOR(31 downto 0));
+entity alu is 
+  port(a, b : in STD_LOGIC_VECTOR(31 downto 0);
+    alucontrol : in     STD_LOGIC_VECTOR(2 downto 0);
+    result     : buffer STD_LOGIC_VECTOR(31 downto 0);
+    zero       : out    STD_LOGIC);
 end;
 
-architecture struct of mips is
-	component controller
-		port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
-			zero               : in  STD_LOGIC;
-			stall			   : in  STD_LOGIC;
-			memtoreg, memwrite : out STD_LOGIC;
-			pcsrc              : out STD_LOGIC;
-			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
-			regdst, regwrite   : out STD_LOGIC;
-			jump               : out STD_LOGIC;
-			alucontrol         : out STD_LOGIC_VECTOR(2 downto 0));
-	end component;
-	component datapath
-		port(clk, reset : in STD_LOGIC;
-			memtoreg, pcsrc   : in     STD_LOGIC;
-			alusrc            : in     STD_LOGIC_VECTOR(1 downto 0);
-			regdst            : in     STD_LOGIC;
-			jump 			  : in     STD_LOGIC;
-			alucontrol        : in     STD_LOGIC_VECTOR(2 downto 0);
-			zero              : out    STD_LOGIC;
-			pc                : in     STD_LOGIC_VECTOR(31 downto 0);
-			instr             : in     STD_LOGIC_VECTOR(31 downto 0);
-			aluout			  : buffer STD_LOGIC_VECTOR(31 downto 0);
-			writedata		  : in     STD_LOGIC_VECTOR(31 downto 0);
-			readdata          : in     STD_LOGIC_VECTOR(31 downto 0);
-			pcnext            : out    STD_LOGIC_VECTOR(31 downto 0);
-			writereg          : out    STD_LOGIC_VECTOR(4 downto 0);
-			result	          : out    STD_LOGIC_VECTOR(31 downto 0);
-			srca              : in     STD_LOGIC_VECTOR(31 downto 0));
-	end component;
-	
-	signal alusrc                                  : STD_LOGIC_VECTOR(1 downto 0);
-	signal memtoreg, regdst, jump, pcsrc : STD_LOGIC;
-	signal zero                                    : STD_LOGIC;
-	signal alucontrol                              : STD_LOGIC_VECTOR(2 downto 0);
+architecture behave of alu is
+  signal condinvb, sum : STD_LOGIC_VECTOR(31 downto 0);
 begin
-		cont : controller port map(instr(31 downto 26), instr(5 downto 0),
-			zero, stall, memtoreg, memwrite, pcsrc, alusrc,
-			regdst, regwrite, jump, alucontrol);
-		dp : datapath port map(clk, reset, memtoreg, pcsrc, alusrc, regdst,
-			jump, alucontrol, zero, pc, instr,
-			aluout, writedata, readdata, pcnext, writereg, result, srca);
-end;
-
--- ==========================================================
--- flopr.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;  use IEEE.STD_LOGIC_ARITH.all;
-
-entity flopr is -- flip-flop with synchronous reset
-  generic(width: integer);
-  port(clk, reset: in  STD_LOGIC;
-       d:          in  STD_LOGIC_VECTOR(width-1 downto 0);
-       q:          out STD_LOGIC_VECTOR(width-1 downto 0));
-end;
-
-architecture asynchronous of flopr is
-begin
-  process(clk, reset) begin
-    if reset then  q <= (others => '0');
-    elsif rising_edge(clk) then
-      q <= d;
-    end if;
+  condinvb <= not b when alucontrol(2) else b;
+  sum      <= a + condinvb + alucontrol(2);
+  
+  process(all) begin
+    case alucontrol(1 downto 0) is
+      when "00"   => result   <= a and b; 
+      when "01"   => result   <= a or b; 
+      when "10"   => result   <= sum; 
+      when "11"   => result   <= (0 => sum(31), others => '0'); 
+      when others => result <= (others => 'X'); 
+    end case;
   end process;
+  
+  zero <= '1' when result = X"00000000" else '0';
 end;
 
 -- ==========================================================
@@ -412,6 +255,36 @@ end process;
 end;
 
 -- ==========================================================
+-- aludec.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity aludec is -- ALU control decoder
+  port(funct : in STD_LOGIC_VECTOR(5 downto 0);
+    aluop      : in  STD_LOGIC_VECTOR(1 downto 0);
+    alucontrol : out STD_LOGIC_VECTOR(2 downto 0));
+end;
+
+architecture behave of aludec is
+begin
+  process(all) begin
+    case aluop is
+          when "00"     => alucontrol <= "010"; -- add (for lw/sw/addi)
+          when "01"     => alucontrol <= "110"; -- sub (for beq)
+          when "11"     => alucontrol <= "001"; -- or (for ori)
+          when others   => case funct is -- R-type instructions
+            when "100000" => alucontrol <= "010"; -- add 
+            when "100010" => alucontrol <= "110"; -- sub
+            when "100100" => alucontrol <= "000"; -- and
+            when "100101" => alucontrol <= "001"; -- or
+            when "101010" => alucontrol <= "111"; -- slt
+            when others   => alucontrol   <= "---"; -- ???
+        end case;
+    end case;
+  end process;
+end;
+
+-- ==========================================================
 -- maindec.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;
@@ -449,6 +322,73 @@ begin
 end;
 
 -- ==========================================================
+-- mips.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity mips is -- single cycle MIPS processor
+	port(clk, reset : in STD_LOGIC;
+		pc                : in STD_LOGIC_VECTOR(31 downto 0);
+		instr             : in  STD_LOGIC_VECTOR(31 downto 0);
+		stall			  : in STD_LOGIC;
+		memwrite          : out STD_LOGIC;
+		aluout			  : out STD_LOGIC_VECTOR(31 downto 0);
+		writedata		  : in  STD_LOGIC_VECTOR(31 downto 0);
+		readdata          : in  STD_LOGIC_VECTOR(31 downto 0);
+		pcnext            : out STD_LOGIC_VECTOR(31 downto 0);
+		regwrite          : out STD_LOGIC;
+		writereg          : out STD_LOGIC_VECTOR(4 downto 0);
+		result	          : out STD_LOGIC_VECTOR(31 downto 0);
+		srca              : in  STD_LOGIC_VECTOR(31 downto 0);
+		jump              : buffer  STD_LOGIC;
+		pcsrc             : buffer  STD_LOGIC);
+end;
+
+architecture struct of mips is
+	component controller
+		port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
+			zero               : in  STD_LOGIC;
+			stall			   : in  STD_LOGIC;
+			memtoreg, memwrite : out STD_LOGIC;
+			pcsrc              : out STD_LOGIC;
+			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
+			regdst, regwrite   : out STD_LOGIC;
+			jump               : out STD_LOGIC;
+			alucontrol         : out STD_LOGIC_VECTOR(2 downto 0));
+	end component;
+	component datapath
+		port(clk, reset : in STD_LOGIC;
+			memtoreg, pcsrc   : in     STD_LOGIC;
+			alusrc            : in     STD_LOGIC_VECTOR(1 downto 0);
+			regdst            : in     STD_LOGIC;
+			jump 			  : in     STD_LOGIC;
+			alucontrol        : in     STD_LOGIC_VECTOR(2 downto 0);
+			zero              : out    STD_LOGIC;
+			pc                : in     STD_LOGIC_VECTOR(31 downto 0);
+			instr             : in     STD_LOGIC_VECTOR(31 downto 0);
+			aluout			  : buffer STD_LOGIC_VECTOR(31 downto 0);
+			writedata		  : in     STD_LOGIC_VECTOR(31 downto 0);
+			readdata          : in     STD_LOGIC_VECTOR(31 downto 0);
+			pcnext            : out    STD_LOGIC_VECTOR(31 downto 0);
+			writereg          : out    STD_LOGIC_VECTOR(4 downto 0);
+			result	          : out    STD_LOGIC_VECTOR(31 downto 0);
+			srca              : in     STD_LOGIC_VECTOR(31 downto 0));
+	end component;
+	
+	signal alusrc                                  : STD_LOGIC_VECTOR(1 downto 0);
+	signal memtoreg, regdst 				   : STD_LOGIC;
+	signal zero                                    : STD_LOGIC;
+	signal alucontrol                              : STD_LOGIC_VECTOR(2 downto 0);
+begin
+		cont : controller port map(instr(31 downto 26), instr(5 downto 0),
+			zero, stall, memtoreg, memwrite, pcsrc, alusrc,
+			regdst, regwrite, jump, alucontrol);
+		dp : datapath port map(clk, reset, memtoreg, pcsrc, alusrc, regdst,
+			jump, alucontrol, zero, pc, instr,
+			aluout, writedata, readdata, pcnext, writereg, result, srca);
+end;
+
+-- ==========================================================
 -- mux2.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;
@@ -466,41 +406,75 @@ begin
 end;
 
 -- ==========================================================
--- regfile.vhd
+-- dmem.vhd
 
-library IEEE; use IEEE.STD_LOGIC_1164.all; 
-use IEEE.NUMERIC_STD_UNSIGNED.all;
+library IEEE; 
+use IEEE.STD_LOGIC_1164.all; use STD.TEXTIO.all;
+use IEEE.NUMERIC_STD_UNSIGNED.all; 
 
-entity regfile is -- three-port register file
-  port(clk:           in  STD_LOGIC;
-       we3:           in  STD_LOGIC;
-       ra1, ra2, wa3: in  STD_LOGIC_VECTOR(4 downto 0);
-       wd3:           in  STD_LOGIC_VECTOR(31 downto 0);
-       rd1, rd2:      out STD_LOGIC_VECTOR(31 downto 0));
+entity dmem is -- data memory
+	port(clk, we: in STD_LOGIC;
+		a, wd: in  STD_LOGIC_VECTOR(31 downto 0);
+		rd   : out STD_LOGIC_VECTOR(31 downto 0));
 end;
 
-architecture behave of regfile is
-  type ramtype is array (31 downto 0) of STD_LOGIC_VECTOR(31 downto 0);
-  signal mem: ramtype;
+architecture behave of dmem is
 begin
-  -- three-ported register file
-  -- read two ports combinationally
-  -- write third port on rising edge of clock
-  -- register 0 hardwired to 0
-  -- note: for pipelined processor, write third port
-  -- on falling edge of clk
-  process(clk) begin
-    if rising_edge(clk) then
-       if we3 = '1' then mem(to_integer(wa3)) <= wd3;
-       end if;
-    end if;
-  end process;
-  process(all) begin
-    if (to_integer(ra1) = 0) then rd1 <= X"00000000"; -- register 0 holds 0
-    else rd1 <= mem(to_integer(ra1));
-    end if;
-    if (to_integer(ra2) = 0) then rd2 <= X"00000000"; 
-    else rd2 <= mem(to_integer(ra2));
+	process is
+		type ramtype is array (63 downto 0) of STD_LOGIC_VECTOR(31 downto 0);
+		variable mem: ramtype;
+	begin
+		-- read or write memory
+		loop
+			if clk'event and clk = '1' then
+				if (we = '1') then mem(to_integer(a(7 downto 2))) := wd;
+				end if;
+			end if;
+			rd <= mem(to_integer(a(7 downto 2))); 
+			wait on clk, a;
+		end loop;
+		
+	end process;
+end;
+
+-- ==========================================================
+-- mux4.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+    
+entity mux4 is -- four-input multiplexer
+    generic(width    :    integer);
+    port(d0,d1,d2,d3 : in STD_LOGIC_VECTOR(width-1 downto 0);
+        s : in  STD_LOGIC_VECTOR(1 downto 0);
+        y : out STD_LOGIC_VECTOR(width-1 downto 0));
+end;
+
+architecture behave of mux4 is
+begin
+    y <= d0 when s="00" else
+        d1     when s="01" else
+        d2     when s="10" else
+        d3;
+end;
+
+-- ==========================================================
+-- flopr.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;  use IEEE.STD_LOGIC_ARITH.all;
+
+entity flopr is -- flip-flop with synchronous reset
+  generic(width: integer);
+  port(clk, reset: in  STD_LOGIC;
+       d:          in  STD_LOGIC_VECTOR(width-1 downto 0);
+       q:          out STD_LOGIC_VECTOR(width-1 downto 0));
+end;
+
+architecture asynchronous of flopr is
+begin
+  process(clk, reset) begin
+    if reset then  q <= (others => '0');
+    elsif rising_edge(clk) then
+      q <= d;
     end if;
   end process;
 end;
@@ -560,26 +534,6 @@ begin
 end;
 
 -- ==========================================================
--- mux4.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-    
-entity mux4 is -- four-input multiplexer
-    generic(width    :    integer);
-    port(d0,d1,d2,d3 : in STD_LOGIC_VECTOR(width-1 downto 0);
-        s : in  STD_LOGIC_VECTOR(1 downto 0);
-        y : out STD_LOGIC_VECTOR(width-1 downto 0));
-end;
-
-architecture behave of mux4 is
-begin
-    y <= d0 when s="00" else
-        d1     when s="01" else
-        d2     when s="10" else
-        d3;
-end;
-
--- ==========================================================
 -- top.vhd
 
 library IEEE; 
@@ -604,8 +558,10 @@ architecture test of top is
 			pcnext           : out STD_LOGIC_VECTOR(31 downto 0);
 			regwrite         : out STD_LOGIC;
 			writereg         : out STD_LOGIC_VECTOR(4 downto 0);
-			result	          : out STD_LOGIC_VECTOR(31 downto 0);
-			srca             : in  STD_LOGIC_VECTOR(31 downto 0));
+			result	         : out STD_LOGIC_VECTOR(31 downto 0);
+			srca             : in  STD_LOGIC_VECTOR(31 downto 0);
+			jump             : buffer  STD_LOGIC;
+			pcsrc            : buffer  STD_LOGIC);
 	end component;
 	-- component hazardunit 
 	-- 	port(clk, reset: in STD_LOGIC;
@@ -637,16 +593,18 @@ architecture test of top is
       wd3           : in  STD_LOGIC_VECTOR(31 downto 0);
       rd1, rd2      : out STD_LOGIC_VECTOR(31 downto 0));
   	end component;
-	signal pc, pcnext, instr, 
+	signal pc, pcnext, instr,
 	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
 
 	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
 
+	signal jump1: STD_LOGIC;
+	signal pcsrc1: STD_LOGIC;
 	signal regwrite: STD_LOGIC;
 begin
 	-- instantiate processor and memories
 	mips1: mips port map(clk, reset, pc, instr, '0', memwrite, dataadr, 
-		writedata, readdata, pcnext, regwrite, writereg, result, srca);
+		writedata, readdata, pcnext, regwrite, writereg, result, srca, jump1, pcsrc1);
 	imem1: imem port map(pc(7 downto 2), instr);
 	dmem1: dmem port map(clk, memwrite, dataadr, writedata, readdata);
 	pcreg: flopr generic map(32) port map(clk, reset, pcnext, pc); 
@@ -655,6 +613,46 @@ begin
 		instr(20 downto 16), writereg, result, srca, 
 		writedata);
 
+end;
+
+-- ==========================================================
+-- regfile.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all; 
+use IEEE.NUMERIC_STD_UNSIGNED.all;
+
+entity regfile is -- three-port register file
+  port(clk:           in  STD_LOGIC;
+       we3:           in  STD_LOGIC;
+       ra1, ra2, wa3: in  STD_LOGIC_VECTOR(4 downto 0);
+       wd3:           in  STD_LOGIC_VECTOR(31 downto 0);
+       rd1, rd2:      out STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture behave of regfile is
+  type ramtype is array (31 downto 0) of STD_LOGIC_VECTOR(31 downto 0);
+  signal mem: ramtype;
+begin
+  -- three-ported register file
+  -- read two ports combinationally
+  -- write third port on rising edge of clock
+  -- register 0 hardwired to 0
+  -- note: for pipelined processor, write third port
+  -- on falling edge of clk
+  process(clk) begin
+    if rising_edge(clk) then
+       if we3 = '1' then mem(to_integer(wa3)) <= wd3;
+       end if;
+    end if;
+  end process;
+  process(all) begin
+    if (to_integer(ra1) = 0) then rd1 <= X"00000000"; -- register 0 holds 0
+    else rd1 <= mem(to_integer(ra1));
+    end if;
+    if (to_integer(ra2) = 0) then rd2 <= X"00000000"; 
+    else rd2 <= mem(to_integer(ra2));
+    end if;
+  end process;
 end;
 
 -- ==========================================================

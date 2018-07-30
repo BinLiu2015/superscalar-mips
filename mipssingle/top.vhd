@@ -12,6 +12,7 @@ architecture test of top is
 		port(clk, reset: in STD_LOGIC;
 			pc               : in STD_LOGIC_VECTOR(31 downto 0);
 			instr            : in  STD_LOGIC_VECTOR(31 downto 0);
+			stall			 : in  STD_LOGIC;			
 			memwrite         : out STD_LOGIC;
 			aluout			 : out STD_LOGIC_VECTOR(31 downto 0);
 			writedata		 : in  STD_LOGIC_VECTOR(31 downto 0);
@@ -19,7 +20,10 @@ architecture test of top is
 			pcnext           : out STD_LOGIC_VECTOR(31 downto 0);
 			regwrite         : out STD_LOGIC;
 			writereg         : out STD_LOGIC_VECTOR(4 downto 0);
-			srca             : in  STD_LOGIC_VECTOR(31 downto 0));
+			result	         : out STD_LOGIC_VECTOR(31 downto 0);
+			srca             : in  STD_LOGIC_VECTOR(31 downto 0);
+			jump             : buffer  STD_LOGIC;
+			pcsrc            : buffer  STD_LOGIC);
 	end component;
 	-- component hazardunit 
 	-- 	port(clk, reset: in STD_LOGIC;
@@ -51,16 +55,17 @@ architecture test of top is
       wd3           : in  STD_LOGIC_VECTOR(31 downto 0);
       rd1, rd2      : out STD_LOGIC_VECTOR(31 downto 0));
   	end component;
-	signal pc, pcnext, instr, 
+	signal pc, pcnext, instr,
 	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
 
 	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
 
+	signal jump1: STD_LOGIC;
 	signal regwrite: STD_LOGIC;
 begin
 	-- instantiate processor and memories
-	mips1: mips port map(clk, reset, pc, instr, memwrite, dataadr, 
-		writedata, readdata, pcnext, regwrite, writereg, result, srca);
+	mips1: mips port map(clk, reset, pc, instr, '0', memwrite, dataadr, 
+		writedata, readdata, pcnext, regwrite, writereg, result, srca, jump1);
 	imem1: imem port map(pc(7 downto 2), instr);
 	dmem1: dmem port map(clk, memwrite, dataadr, writedata, readdata);
 	pcreg: flopr generic map(32) port map(clk, reset, pcnext, pc); 

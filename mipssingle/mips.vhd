@@ -4,6 +4,7 @@ entity mips is -- single cycle MIPS processor
 	port(clk, reset : in STD_LOGIC;
 		pc                : in STD_LOGIC_VECTOR(31 downto 0);
 		instr             : in  STD_LOGIC_VECTOR(31 downto 0);
+		stall			  : in STD_LOGIC;
 		memwrite          : out STD_LOGIC;
 		aluout			  : out STD_LOGIC_VECTOR(31 downto 0);
 		writedata		  : in  STD_LOGIC_VECTOR(31 downto 0);
@@ -12,13 +13,16 @@ entity mips is -- single cycle MIPS processor
 		regwrite          : out STD_LOGIC;
 		writereg          : out STD_LOGIC_VECTOR(4 downto 0);
 		result	          : out STD_LOGIC_VECTOR(31 downto 0);
-		srca              : in  STD_LOGIC_VECTOR(31 downto 0));
+		srca              : in  STD_LOGIC_VECTOR(31 downto 0);
+		jump              : buffer  STD_LOGIC;
+		pcsrc             : buffer  STD_LOGIC);
 end;
 
 architecture struct of mips is
 	component controller
 		port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
 			zero               : in  STD_LOGIC;
+			stall			   : in  STD_LOGIC;
 			memtoreg, memwrite : out STD_LOGIC;
 			pcsrc              : out STD_LOGIC;
 			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
@@ -46,12 +50,12 @@ architecture struct of mips is
 	end component;
 	
 	signal alusrc                                  : STD_LOGIC_VECTOR(1 downto 0);
-	signal memtoreg, regdst, jump, pcsrc : STD_LOGIC;
+	signal memtoreg, regdst 				   : STD_LOGIC;
 	signal zero                                    : STD_LOGIC;
 	signal alucontrol                              : STD_LOGIC_VECTOR(2 downto 0);
 begin
 		cont : controller port map(instr(31 downto 26), instr(5 downto 0),
-			zero, memtoreg, memwrite, pcsrc, alusrc,
+			zero, stall, memtoreg, memwrite, pcsrc, alusrc,
 			regdst, regwrite, jump, alucontrol);
 		dp : datapath port map(clk, reset, memtoreg, pcsrc, alusrc, regdst,
 			jump, alucontrol, zero, pc, instr,

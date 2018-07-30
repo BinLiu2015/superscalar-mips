@@ -1,52 +1,4 @@
 -- ==========================================================
--- adder.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all; 
-use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity adder is -- adder
-  port(a, b: in  STD_LOGIC_VECTOR(31 downto 0);
-       y:    out STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture behave of adder is
-begin
-  y <= a + b;
-end;
-
--- ==========================================================
--- alu.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all; 
-use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity alu is 
-  port(a, b : in STD_LOGIC_VECTOR(31 downto 0);
-    alucontrol : in     STD_LOGIC_VECTOR(2 downto 0);
-    result     : buffer STD_LOGIC_VECTOR(31 downto 0);
-    zero       : out    STD_LOGIC);
-end;
-
-architecture behave of alu is
-  signal condinvb, sum : STD_LOGIC_VECTOR(31 downto 0);
-begin
-  condinvb <= not b when alucontrol(2) else b;
-  sum      <= a + condinvb + alucontrol(2);
-  
-  process(all) begin
-    case alucontrol(1 downto 0) is
-      when "00"   => result   <= a and b; 
-      when "01"   => result   <= a or b; 
-      when "10"   => result   <= sum; 
-      when "11"   => result   <= (0 => sum(31), others => '0'); 
-      when others => result <= (others => 'X'); 
-    end case;
-  end process;
-  
-  zero <= '1' when result = X"00000000" else '0';
-end;
-
--- ==========================================================
 -- aludec.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;
@@ -77,6 +29,22 @@ begin
 end;
 
 -- ==========================================================
+-- adder.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all; 
+use IEEE.NUMERIC_STD_UNSIGNED.all;
+
+entity adder is -- adder
+  port(a, b: in  STD_LOGIC_VECTOR(31 downto 0);
+       y:    out STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture behave of adder is
+begin
+  y <= a + b;
+end;
+
+-- ==========================================================
 -- controller.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;
@@ -84,6 +52,7 @@ library IEEE; use IEEE.STD_LOGIC_1164.all;
 entity controller is -- single cycle control decoder
 	port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
 		zero               : in  STD_LOGIC;
+		stall			   : in  STD_LOGIC;
 		memtoreg, memwrite : out STD_LOGIC;
 		pcsrc              : out STD_LOGIC;
 		alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
@@ -118,6 +87,50 @@ begin
 		ad : aludec port map(funct, aluop, alucontrol);
 	
 	pcsrc <= (branch and zero) or (branchNotEqual and not zero);
+end;
+
+-- ==========================================================
+-- array.vhd
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+package bus_multiplexer_pkg is
+        type bus_array is array(natural range <>) of std_logic_vector;
+end package;
+
+
+-- ==========================================================
+-- alu.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all; 
+use IEEE.NUMERIC_STD_UNSIGNED.all;
+
+entity alu is 
+  port(a, b : in STD_LOGIC_VECTOR(31 downto 0);
+    alucontrol : in     STD_LOGIC_VECTOR(2 downto 0);
+    result     : buffer STD_LOGIC_VECTOR(31 downto 0);
+    zero       : out    STD_LOGIC);
+end;
+
+architecture behave of alu is
+  signal condinvb, sum : STD_LOGIC_VECTOR(31 downto 0);
+begin
+  condinvb <= not b when alucontrol(2) else b;
+  sum      <= a + condinvb + alucontrol(2);
+  
+  process(all) begin
+    case alucontrol(1 downto 0) is
+      when "00"   => result   <= a and b; 
+      when "01"   => result   <= a or b; 
+      when "10"   => result   <= sum; 
+      when "11"   => result   <= (0 => sum(31), others => '0'); 
+      when others => result <= (others => 'X'); 
+    end case;
+  end process;
+  
+  zero <= '1' when result = X"00000000" else '0';
 end;
 
 -- ==========================================================
@@ -227,28 +240,6 @@ begin
 end;
 
 -- ==========================================================
--- flopr.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;  use IEEE.STD_LOGIC_ARITH.all;
-
-entity flopr is -- flip-flop with synchronous reset
-  generic(width: integer);
-  port(clk, reset: in  STD_LOGIC;
-       d:          in  STD_LOGIC_VECTOR(width-1 downto 0);
-       q:          out STD_LOGIC_VECTOR(width-1 downto 0));
-end;
-
-architecture asynchronous of flopr is
-begin
-  process(clk, reset) begin
-    if reset then  q <= (others => '0');
-    elsif rising_edge(clk) then
-      q <= d;
-    end if;
-  end process;
-end;
-
--- ==========================================================
 -- dmem.vhd
 
 library IEEE; 
@@ -278,6 +269,93 @@ begin
 		end loop;
 		
 	end process;
+end;
+
+-- ==========================================================
+-- mips.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity mips is -- single cycle MIPS processor
+	port(clk, reset : in STD_LOGIC;
+		pc                : in STD_LOGIC_VECTOR(31 downto 0);
+		instr             : in  STD_LOGIC_VECTOR(31 downto 0);
+		stall			  : in STD_LOGIC;
+		memwrite          : out STD_LOGIC;
+		aluout			  : out STD_LOGIC_VECTOR(31 downto 0);
+		writedata		  : in  STD_LOGIC_VECTOR(31 downto 0);
+		readdata          : in  STD_LOGIC_VECTOR(31 downto 0);
+		pcnext            : out STD_LOGIC_VECTOR(31 downto 0);
+		regwrite          : out STD_LOGIC;
+		writereg          : out STD_LOGIC_VECTOR(4 downto 0);
+		result	          : out STD_LOGIC_VECTOR(31 downto 0);
+		srca              : in  STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture struct of mips is
+	component controller
+		port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
+			zero               : in  STD_LOGIC;
+			stall			   : in  STD_LOGIC;
+			memtoreg, memwrite : out STD_LOGIC;
+			pcsrc              : out STD_LOGIC;
+			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
+			regdst, regwrite   : out STD_LOGIC;
+			jump               : out STD_LOGIC;
+			alucontrol         : out STD_LOGIC_VECTOR(2 downto 0));
+	end component;
+	component datapath
+		port(clk, reset : in STD_LOGIC;
+			memtoreg, pcsrc   : in     STD_LOGIC;
+			alusrc            : in     STD_LOGIC_VECTOR(1 downto 0);
+			regdst            : in     STD_LOGIC;
+			jump 			  : in     STD_LOGIC;
+			alucontrol        : in     STD_LOGIC_VECTOR(2 downto 0);
+			zero              : out    STD_LOGIC;
+			pc                : in     STD_LOGIC_VECTOR(31 downto 0);
+			instr             : in     STD_LOGIC_VECTOR(31 downto 0);
+			aluout			  : buffer STD_LOGIC_VECTOR(31 downto 0);
+			writedata		  : in     STD_LOGIC_VECTOR(31 downto 0);
+			readdata          : in     STD_LOGIC_VECTOR(31 downto 0);
+			pcnext            : out    STD_LOGIC_VECTOR(31 downto 0);
+			writereg          : out    STD_LOGIC_VECTOR(4 downto 0);
+			result	          : out    STD_LOGIC_VECTOR(31 downto 0);
+			srca              : in     STD_LOGIC_VECTOR(31 downto 0));
+	end component;
+	
+	signal alusrc                                  : STD_LOGIC_VECTOR(1 downto 0);
+	signal memtoreg, regdst, jump, pcsrc : STD_LOGIC;
+	signal zero                                    : STD_LOGIC;
+	signal alucontrol                              : STD_LOGIC_VECTOR(2 downto 0);
+begin
+		cont : controller port map(instr(31 downto 26), instr(5 downto 0),
+			zero, stall, memtoreg, memwrite, pcsrc, alusrc,
+			regdst, regwrite, jump, alucontrol);
+		dp : datapath port map(clk, reset, memtoreg, pcsrc, alusrc, regdst,
+			jump, alucontrol, zero, pc, instr,
+			aluout, writedata, readdata, pcnext, writereg, result, srca);
+end;
+
+-- ==========================================================
+-- flopr.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;  use IEEE.STD_LOGIC_ARITH.all;
+
+entity flopr is -- flip-flop with synchronous reset
+  generic(width: integer);
+  port(clk, reset: in  STD_LOGIC;
+       d:          in  STD_LOGIC_VECTOR(width-1 downto 0);
+       q:          out STD_LOGIC_VECTOR(width-1 downto 0));
+end;
+
+architecture asynchronous of flopr is
+begin
+  process(clk, reset) begin
+    if reset then  q <= (others => '0');
+    elsif rising_edge(clk) then
+      q <= d;
+    end if;
+  end process;
 end;
 
 -- ==========================================================
@@ -388,69 +466,6 @@ begin
 end;
 
 -- ==========================================================
--- mips.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity mips is -- single cycle MIPS processor
-	port(clk, reset : in STD_LOGIC;
-		pc                : in STD_LOGIC_VECTOR(31 downto 0);
-		instr             : in  STD_LOGIC_VECTOR(31 downto 0);
-		memwrite          : out STD_LOGIC;
-		aluout			  : out STD_LOGIC_VECTOR(31 downto 0);
-		writedata		  : in  STD_LOGIC_VECTOR(31 downto 0);
-		readdata          : in  STD_LOGIC_VECTOR(31 downto 0);
-		pcnext            : out STD_LOGIC_VECTOR(31 downto 0);
-		regwrite          : out STD_LOGIC;
-		writereg          : out STD_LOGIC_VECTOR(4 downto 0);
-		result	          : out STD_LOGIC_VECTOR(31 downto 0);
-		srca              : in  STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture struct of mips is
-	component controller
-		port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
-			zero               : in  STD_LOGIC;
-			memtoreg, memwrite : out STD_LOGIC;
-			pcsrc              : out STD_LOGIC;
-			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
-			regdst, regwrite   : out STD_LOGIC;
-			jump               : out STD_LOGIC;
-			alucontrol         : out STD_LOGIC_VECTOR(2 downto 0));
-	end component;
-	component datapath
-		port(clk, reset : in STD_LOGIC;
-			memtoreg, pcsrc   : in     STD_LOGIC;
-			alusrc            : in     STD_LOGIC_VECTOR(1 downto 0);
-			regdst            : in     STD_LOGIC;
-			jump 			  : in     STD_LOGIC;
-			alucontrol        : in     STD_LOGIC_VECTOR(2 downto 0);
-			zero              : out    STD_LOGIC;
-			pc                : in     STD_LOGIC_VECTOR(31 downto 0);
-			instr             : in     STD_LOGIC_VECTOR(31 downto 0);
-			aluout			  : buffer STD_LOGIC_VECTOR(31 downto 0);
-			writedata		  : in     STD_LOGIC_VECTOR(31 downto 0);
-			readdata          : in     STD_LOGIC_VECTOR(31 downto 0);
-			pcnext            : out    STD_LOGIC_VECTOR(31 downto 0);
-			writereg          : out    STD_LOGIC_VECTOR(4 downto 0);
-			result	          : out    STD_LOGIC_VECTOR(31 downto 0);
-			srca              : in     STD_LOGIC_VECTOR(31 downto 0));
-	end component;
-	
-	signal alusrc                                  : STD_LOGIC_VECTOR(1 downto 0);
-	signal memtoreg, regdst, jump, pcsrc : STD_LOGIC;
-	signal zero                                    : STD_LOGIC;
-	signal alucontrol                              : STD_LOGIC_VECTOR(2 downto 0);
-begin
-		cont : controller port map(instr(31 downto 26), instr(5 downto 0),
-			zero, memtoreg, memwrite, pcsrc, alusrc,
-			regdst, regwrite, jump, alucontrol);
-		dp : datapath port map(clk, reset, memtoreg, pcsrc, alusrc, regdst,
-			jump, alucontrol, zero, pc, instr,
-			aluout, writedata, readdata, pcnext, writereg, result, srca);
-end;
-
--- ==========================================================
 -- regfile.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all; 
@@ -488,56 +503,6 @@ begin
     else rd2 <= mem(to_integer(ra2));
     end if;
   end process;
-end;
-
--- ==========================================================
--- signext.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity signext is -- sign extender
-  port(a: in  STD_LOGIC_VECTOR(15 downto 0);
-       y: out STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture behave of signext is
-begin
-  y <= X"ffff" & a when a(15) else X"0000" & a; 
-end;
-
--- ==========================================================
--- sl2.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity sl2 is -- shift left by 2
-  port(a: in  STD_LOGIC_VECTOR(31 downto 0);
-       y: out STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture behave of sl2 is
-begin
-  y <= a(29 downto 0) & "00";
-end;
-
--- ==========================================================
--- mux4.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-    
-entity mux4 is -- four-input multiplexer
-    generic(width    :    integer);
-    port(d0,d1,d2,d3 : in STD_LOGIC_VECTOR(width-1 downto 0);
-        s : in  STD_LOGIC_VECTOR(1 downto 0);
-        y : out STD_LOGIC_VECTOR(width-1 downto 0));
-end;
-
-architecture behave of mux4 is
-begin
-    y <= d0 when s="00" else
-        d1     when s="01" else
-        d2     when s="10" else
-        d3;
 end;
 
 -- ==========================================================
@@ -595,6 +560,26 @@ begin
 end;
 
 -- ==========================================================
+-- mux4.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+    
+entity mux4 is -- four-input multiplexer
+    generic(width    :    integer);
+    port(d0,d1,d2,d3 : in STD_LOGIC_VECTOR(width-1 downto 0);
+        s : in  STD_LOGIC_VECTOR(1 downto 0);
+        y : out STD_LOGIC_VECTOR(width-1 downto 0));
+end;
+
+architecture behave of mux4 is
+begin
+    y <= d0 when s="00" else
+        d1     when s="01" else
+        d2     when s="10" else
+        d3;
+end;
+
+-- ==========================================================
 -- top.vhd
 
 library IEEE; 
@@ -611,6 +596,7 @@ architecture test of top is
 		port(clk, reset: in STD_LOGIC;
 			pc               : in STD_LOGIC_VECTOR(31 downto 0);
 			instr            : in  STD_LOGIC_VECTOR(31 downto 0);
+			stall			 : in  STD_LOGIC;			
 			memwrite         : out STD_LOGIC;
 			aluout			 : out STD_LOGIC_VECTOR(31 downto 0);
 			writedata		 : in  STD_LOGIC_VECTOR(31 downto 0);
@@ -618,6 +604,7 @@ architecture test of top is
 			pcnext           : out STD_LOGIC_VECTOR(31 downto 0);
 			regwrite         : out STD_LOGIC;
 			writereg         : out STD_LOGIC_VECTOR(4 downto 0);
+			result	          : out STD_LOGIC_VECTOR(31 downto 0);
 			srca             : in  STD_LOGIC_VECTOR(31 downto 0));
 	end component;
 	-- component hazardunit 
@@ -658,7 +645,7 @@ architecture test of top is
 	signal regwrite: STD_LOGIC;
 begin
 	-- instantiate processor and memories
-	mips1: mips port map(clk, reset, pc, instr, memwrite, dataadr, 
+	mips1: mips port map(clk, reset, pc, instr, '0', memwrite, dataadr, 
 		writedata, readdata, pcnext, regwrite, writereg, result, srca);
 	imem1: imem port map(pc(7 downto 2), instr);
 	dmem1: dmem port map(clk, memwrite, dataadr, writedata, readdata);
@@ -668,5 +655,35 @@ begin
 		instr(20 downto 16), writereg, result, srca, 
 		writedata);
 
+end;
+
+-- ==========================================================
+-- signext.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity signext is -- sign extender
+  port(a: in  STD_LOGIC_VECTOR(15 downto 0);
+       y: out STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture behave of signext is
+begin
+  y <= X"ffff" & a when a(15) else X"0000" & a; 
+end;
+
+-- ==========================================================
+-- sl2.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity sl2 is -- shift left by 2
+  port(a: in  STD_LOGIC_VECTOR(31 downto 0);
+       y: out STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture behave of sl2 is
+begin
+  y <= a(29 downto 0) & "00";
 end;
 

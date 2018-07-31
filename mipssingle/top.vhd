@@ -3,8 +3,12 @@ use IEEE.STD_LOGIC_1164.all; use IEEE.NUMERIC_STD_UNSIGNED.all;
 
 entity top is -- top-level design for testing
 	port(clk, reset: in STD_LOGIC;
-		writedata, dataadr: buffer STD_LOGIC_VECTOR(31 downto 0);
-		memwrite          : buffer STD_LOGIC);
+		writedata1, dataadr1: buffer STD_LOGIC_VECTOR(31 downto 0);
+		writedata2, dataadr2: buffer STD_LOGIC_VECTOR(31 downto 0);
+		writedata3, dataadr3: buffer STD_LOGIC_VECTOR(31 downto 0);
+		memwrite1          : buffer STD_LOGIC);
+		memwrite2          : buffer STD_LOGIC);
+		memwrite3          : buffer STD_LOGIC);
 end;
 
 architecture test of top is
@@ -56,21 +60,41 @@ architecture test of top is
   	end component;
 	component imem
 		port(a: in STD_LOGIC_VECTOR(5 downto 0);
-			rd: out STD_LOGIC_VECTOR(31 downto 0));
+			rd1: out STD_LOGIC_VECTOR(31 downto 0);
+			rd2: out STD_LOGIC_VECTOR(31 downto 0);
+			rd3: out STD_LOGIC_VECTOR(31 downto 0));
 	end component;
 	component dmem
-		port(clk, we: in STD_LOGIC;
-			a, wd: in  STD_LOGIC_VECTOR(31 downto 0);
-			rd   : out STD_LOGIC_VECTOR(31 downto 0));
+		port(clk	 : in  STD_LOGIC; 
+			 we1	 : in  STD_LOGIC;
+			 a1		 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 wd1	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 rd1 	 : out STD_LOGIC_VECTOR(31 downto 0);
+			 we2	 : in  STD_LOGIC;
+			 a2	 	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 wd2	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 rd2  	 : out STD_LOGIC_VECTOR(31 downto 0);
+			 we3	 : in  STD_LOGIC;
+			 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0);
 	end component;
 	component regfile
-    port(clk : in STD_LOGIC;
-      we3           : in  STD_LOGIC;
-      ra1, ra2, wa3 : in  STD_LOGIC_VECTOR(4 downto 0);
-      wd3           : in  STD_LOGIC_VECTOR(31 downto 0);
-      rd1, rd2      : out STD_LOGIC_VECTOR(31 downto 0));
+		port(clk : in STD_LOGIC;
+			 writeEn1     	   : in  STD_LOGIC;
+			 ra1A, ra1B, wa1   : in  STD_LOGIC_VECTOR(4 downto 0);
+			 writedata1   	   : in  STD_LOGIC_VECTOR(31 downto 0);
+			 read1A, read1B    : out STD_LOGIC_VECTOR(31 downto 0);
+			 writeEn2     	   : in  STD_LOGIC;
+			 ra2A, ra2B, wa2   : in  STD_LOGIC_VECTOR(4 downto 0);
+			 writedata2   	   : in  STD_LOGIC_VECTOR(31 downto 0);
+			 read2A, read2B    : out STD_LOGIC_VECTOR(31 downto 0);
+			 writeEn3     	   : in  STD_LOGIC;
+			 ra3A, ra3B, wa3   : in  STD_LOGIC_VECTOR(4 downto 0);
+			 writedata3   	   : in  STD_LOGIC_VECTOR(31 downto 0);
+			 read3A, read3B    : out STD_LOGIC_VECTOR(31 downto 0));  
   	end component;
-	signal pc, pcnext, instr,
+	signal pc, pcnext, instr1, instr2, instr3,
 	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
 
 	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
@@ -78,16 +102,35 @@ architecture test of top is
 	signal jump1: STD_LOGIC;
 	signal pcsrc1: STD_LOGIC;
 	signal regwrite: STD_LOGIC;
+
 begin
 	-- instantiate processor and memories
-	mips1: mips port map(clk, reset, pc, instr, '0', memwrite, dataadr, 
-		writedata, readdata, pcnext, regwrite, writereg, result, srca, jump1, pcsrc1);
-	imem1: imem port map(pc(7 downto 2), instr);
-	dmem1: dmem port map(clk, memwrite, dataadr, writedata, readdata);
-	pcreg: flopr generic map(32) port map(clk, reset, pcnext, pc); 
+	mips1: mips port map(clk, reset, pcaddr1, instr1, '0', memwrite1, dataadr1,
+		writedata1, readdata1, pc1, regwrite1, writereg1, result1, srca1, jump1, pcsrc1);
+	
+	mips2: mips port map(clk, reset, pcaddr2, instr2, stall2, memwrite2, dataadr2,
+		writedata2, readdata2, pc2, regwrite2, writereg2, result2, srca2, jump2, pcsrc2);
+	
+	mips3: mips port map(clk, reset, pcaddr3, instr3, stall3, memwrite3, dataadr3,
+		writedata3, readdata3, pc3, regwrite3, writereg3, result3, srca3, jump3, pcsrc3);
 
-	rf : regfile port map(clk, regwrite, instr(25 downto 21), 
-		instr(20 downto 16), writereg, result, srca, 
-		writedata);
+	
+	imem1: imem port map(pc(7 downto 2), instr1, instr2, instr3);
+
+	dmem1: dmem port map(clk, memwrite1, dataadr1, writedata1, readdata1,
+							  memwrite2, dataadr2, writedata2, readdata2,
+							  memwrite3, dataadr3, writedata3, readdata3);
+	
+
+	rf: regfile port map(clk, 
+		regwrite1, instr1(25 downto 21), instr1(20 downto 16), writereg1, result1, srca1, writedata1,
+		regwrite2, instr2(25 downto 21), instr2(20 downto 16), writereg2, result2, srca2, writedata2,
+		regwrite3, instr3(25 downto 21), instr3(20 downto 16), writereg3, result3, srca3, writedata3);
+
+	hazard: hazardunit port map(
+		clk, reset, pc, 
+		pc1, instr1, jump1, pcsrc1, writereg1, pcaddr1, 
+		pc2, instr2, jump2, pcsrc2, writereg2, pcaddr2, stall2, 
+		pc3, instr3, jump3, pcsrc3, writereg3, pcaddr3, stall3)
 
 end;

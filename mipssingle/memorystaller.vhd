@@ -10,7 +10,7 @@ entity memorystaller is
       op3       : in  STD_LOGIC_VECTOR(5 downto 0);
       basereg3  : in  STD_LOGIC_VECTOR(4 downto 0);
       offset3   : in  STD_LOGIC_VECTOR(15 downto 0);
-      stall2, stall3: out STD_LOGIC);      
+      stall2, stall3: out STD_LOGIC);
 end;
 
 architecture behave of memorystaller is

@@ -92,7 +92,7 @@ begin
         pcsrc3 => pcsrc3,
         stall2 => jump_stall2,
         stall3 => jump_stall3
-        ); 
+        );
 
     rs: regstaller port map(
         writereg1 => writereg1,
@@ -103,7 +103,7 @@ begin
         instr3 => instr3,
         stall2 => reg_stall2,
         stall3 => reg_stall3
-        ); 
+        );
     
     ms: memorystaller port map(
         op1 => instr1(31 downto 26),

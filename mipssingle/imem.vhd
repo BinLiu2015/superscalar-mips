@@ -22,7 +22,7 @@ begin
 			mem(i) := (others => '0');
 		end loop;
 		index := 0;
-		FILE_OPEN(mem_file, "C: /Users/agodinho/Documents/Arquitetura/memfile2.dat", READ_MODE);
+		FILE_OPEN(mem_file, "C:\Users\agodinho\Documents\Arquitetura2\memfile2.dat", READ_MODE);
 		while not endfile(mem_file) loop
 		readline(mem_file, L);
 		result := 0;
@@ -42,7 +42,9 @@ begin
 	
 	-- read memory
 	loop
-		rd <= mem(to_integer(a));
+		rd1 <= mem(to_integer(a));
+		rd2 <= mem(to_integer(a + "100"));
+		rd3 <= mem(to_integer(a + "1000"));
 		wait on a;
 	end loop;
 end process;

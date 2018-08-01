@@ -5,7 +5,7 @@ Projeto com o objetivo de implementar uma versão superescalar do MIPS que possa
 
 Para testarmos o código e rodar as simulações utilizamos a versão 2018.2 do Vivado
 
-Inicialmente precisamos criamos um projeto no Vivado. Criamos um projeto do tipo "RTL Project", adicionamos o arquivo mipssuperscalar.vhd da pasta mipssingle e configuramos a "Target language" e "Simulator Language" como "VHDL". A placa usada foi a "xc7a100tcsg324-3".
+Inicialmente precisamos criamos um projeto no Vivado. Criamos um projeto do tipo "RTL Project", adicionamos o arquivo mipssuperscalar.vhd e configuramos a "Target language" e "Simulator Language" como "VHDL". A placa usada foi a "xc7a100tcsg324-3".
 
 Após o setup do projeto, configuramos os Types dos arquivos para VHDL 2008.
 

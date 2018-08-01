@@ -3,8 +3,10 @@ use IEEE.STD_LOGIC_1164.all; use STD.TEXTIO.all;
 use IEEE.NUMERIC_STD_UNSIGNED.all; 
 
 entity imem is -- instruction memory
-	port(a : in STD_LOGIC_VECTOR(5 downto 0);
-		rd : out STD_LOGIC_VECTOR(31 downto 0));
+	port(a: in STD_LOGIC_VECTOR(5 downto 0);
+		rd1: out STD_LOGIC_VECTOR(31 downto 0);
+		rd2: out STD_LOGIC_VECTOR(31 downto 0);
+		rd3: out STD_LOGIC_VECTOR(31 downto 0));
 end;
 
 architecture behave of imem is
@@ -19,13 +21,13 @@ begin
 	begin
 		-- initialize memory from file
 		for i in 0 to 63 loop -- set all contents low
-			mem(i) := (others => '0'); 
+			mem(i) := (others => '0');
 		end loop;
-		index := 0; 
-		FILE_OPEN(mem_file, "C : /Users/agodinho/Documents/Arquitetura/memfile2.dat", READ_MODE);
+		index := 0;
+		FILE_OPEN(mem_file, "C:\Users\agodinho\Documents\Arquitetura2\memfile2.dat", READ_MODE);
 		while not endfile(mem_file) loop
 		readline(mem_file, L);
-		result := 0; 
+		result := 0;
 		for i in 1 to 8 loop
 			read(L, ch);
 			if '0' <= ch and ch <= '9' then 
@@ -42,7 +44,9 @@ begin
 	
 	-- read memory
 	loop
-		rd <= mem(to_integer(a));
+		rd1 <= mem(to_integer(a));
+		rd2 <= mem(to_integer(a) + 4);
+		rd3 <= mem(to_integer(a) + 8);
 		wait on a;
 	end loop;
 end process;

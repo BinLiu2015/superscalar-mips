@@ -3,6 +3,7 @@ library IEEE; use IEEE.STD_LOGIC_1164.all;
 entity controller is -- single cycle control decoder
 	port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
 		zero               : in  STD_LOGIC;
+		stall			   : in  STD_LOGIC;
 		memtoreg, memwrite : out STD_LOGIC;
 		pcsrc              : out STD_LOGIC;
 		alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
@@ -31,10 +32,14 @@ architecture struct of controller is
 	signal aluop          : STD_LOGIC_VECTOR(1 downto 0);
 	signal branch         : STD_LOGIC;
 	signal branchNotEqual : STD_LOGIC;
+	signal tmp_memwrite : STD_LOGIC;
+	signal tmp_regwrite : STD_LOGIC;
 begin
-		md : maindec port map(op, memtoreg, memwrite, branch,
-			alusrc, regdst, regwrite, jump, aluop, branchNotEqual);
+		md : maindec port map(op, memtoreg, tmp_memwrite, branch,
+			alusrc, regdst, tmp_regwrite, jump, aluop, branchNotEqual);
 		ad : aludec port map(funct, aluop, alucontrol);
 	
+	memwrite <= tmp_memwrite and not stall;
+	regwrite <= tmp_regwrite and not stall;
 	pcsrc <= (branch and zero) or (branchNotEqual and not zero);
 end;

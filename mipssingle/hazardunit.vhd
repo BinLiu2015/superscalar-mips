@@ -46,13 +46,13 @@ architecture test of hazardunit is
             stall2, stall3: out STD_LOGIC);      
   	end component;
 	component regstaller
-        port(writereg1    : in  STD_LOGIC;
-            instr1        : in  STD_LOGIC;
-            writereg2     : in  STD_LOGIC;
-            instr2        : in  STD_LOGIC;
-            writereg3     : in  STD_LOGIC;
-            instr3        : in  STD_LOGIC;
-            stall2, stall3: out STD_LOGIC);      
+        port(writereg1    : in  STD_LOGIC;  
+             instr1        : in  STD_LOGIC_VECTOR(31 downto 0);
+             writereg2     : in  STD_LOGIC;
+             instr2        : in  STD_LOGIC_VECTOR(31 downto 0);
+             writereg3     : in  STD_LOGIC;
+             instr3        : in  STD_LOGIC_VECTOR(31 downto 0);
+             stall2, stall3: out STD_LOGIC);      
   	end component;
     component flopr generic(width :    integer);
 		port(clk, reset               : in STD_LOGIC;
@@ -60,16 +60,9 @@ architecture test of hazardunit is
 		q : out STD_LOGIC_VECTOR(width-1 downto 0));
   	end component;
 
-	signal pc, pcnext, instr,
-	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
-
-	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
-
-	signal jump1: STD_LOGIC;
-	signal pcsrc1: STD_LOGIC;
-	signal regwrite: STD_LOGIC;
-	signal jump_stall2, mem_stall2, reg_stall2: STD_LOGIC;
-	signal jump_stall3, mem_stall3, reg_stall3: STD_LOGIC;
+	signal pcnext, instr, readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
+    signal jump_stall2, mem_stall2, reg_stall2: STD_LOGIC;
+    signal jump_stall3, mem_stall3, reg_stall3: STD_LOGIC;
 begin
     stall2 <= jump_stall2 or mem_stall2 or reg_stall2;
     stall3 <= jump_stall3 or mem_stall3 or reg_stall3 or stall2;

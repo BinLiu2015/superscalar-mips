@@ -15,7 +15,7 @@ entity dmem is -- data memory
 		 we3	 : in  STD_LOGIC;
 		 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
 		 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0);
+		 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0));
 end;
 
 architecture behave of dmem is
@@ -40,8 +40,8 @@ begin
 			end if;
 			rd1 <= mem(to_integer(a1(7 downto 2))); 
 			rd2 <= mem(to_integer(a2(7 downto 2))); 
-			rd3 <= mem(to_integer(a3(7 downto 2))); 
-			wait on clk, a;
+			rd3 <= mem(to_integer(a3(7 downto 2))); 			
+			wait on clk, a1, a2, a3;
 		end loop;
 		
 	end process;

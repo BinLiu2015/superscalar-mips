@@ -30,19 +30,16 @@ begin
   process(clk) begin
     if rising_edge(clk) then
        if clk'event and clk = '1' then
-				if (writeEn1 = '1' and (((wa1 /= wa2) or (not writeEn2)) and ((wa1 /= wa3) or (not writeEn3)))) then 
-					mem(to_integer(wa1)) := writedata1;
+				if (writeEn1 = '1' and (((wa1 /= wa2) or (writeEn2 = '0')) and ((wa1 /= wa3) or (writeEn3 = '0')))) then 
+					mem(to_integer(wa1)) <= writedata1;
 				end if;
-				if (writeEn2 = '1' and ((wa2 /= wa3) or (not writeEn3))) then 
-					mem(to_integer(wa2)) := writedata2;
+				if (writeEn2 = '1' and ((wa2 /= wa3) or (writeEn3 = '0'))) then 
+					mem(to_integer(wa2)) <= writedata2;
 				end if;
 				if (writeEn3 = '1') then
-					mem(to_integer(wa3)) := writedata3;
+					mem(to_integer(wa3)) :<= writedata3;
 				end if;
 			end if;
-			rd1 <= mem(to_integer(a1)); 
-			rd2 <= mem(to_integer(a2)); 
-			rd3 <= mem(to_integer(a3)); 
     end if;
   end process;
   process(all) begin

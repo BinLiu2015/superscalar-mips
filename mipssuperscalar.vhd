@@ -15,6 +15,38 @@ begin
 end;
 
 -- ==========================================================
+-- alu.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all; 
+use IEEE.NUMERIC_STD_UNSIGNED.all;
+
+entity alu is 
+  port(a, b : in STD_LOGIC_VECTOR(31 downto 0);
+    alucontrol : in     STD_LOGIC_VECTOR(2 downto 0);
+    result     : buffer STD_LOGIC_VECTOR(31 downto 0);
+    zero       : out    STD_LOGIC);
+end;
+
+architecture behave of alu is
+  signal condinvb, sum : STD_LOGIC_VECTOR(31 downto 0);
+begin
+  condinvb <= not b when alucontrol(2) else b;
+  sum      <= a + condinvb + alucontrol(2);
+  
+  process(all) begin
+    case alucontrol(1 downto 0) is
+      when "00"   => result   <= a and b; 
+      when "01"   => result   <= a or b; 
+      when "10"   => result   <= sum; 
+      when "11"   => result   <= (0 => sum(31), others => '0'); 
+      when others => result <= (others => 'X'); 
+    end case;
+  end process;
+  
+  zero <= '1' when result = X"00000000" else '0';
+end;
+
+-- ==========================================================
 -- aludec.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;
@@ -45,52 +77,55 @@ begin
 end;
 
 -- ==========================================================
--- controller.vhd
+-- dmem.vhd
 
-library IEEE; use IEEE.STD_LOGIC_1164.all;
+library IEEE; 
+use IEEE.STD_LOGIC_1164.all; use STD.TEXTIO.all;
+use IEEE.NUMERIC_STD_UNSIGNED.all; 
 
-entity controller is -- single cycle control decoder
-	port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
-		zero               : in  STD_LOGIC;
-		stall			   : in  STD_LOGIC;
-		memtoreg, memwrite : out STD_LOGIC;
-		pcsrc              : out STD_LOGIC;
-		alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
-		regdst, regwrite   : out STD_LOGIC;
-		jump               : out STD_LOGIC;
-		alucontrol         : out STD_LOGIC_VECTOR(2 downto 0));
+entity dmem is -- data memory
+	port(clk	 : in  STD_LOGIC;
+		 we1	 : in  STD_LOGIC;
+		 a1		 : in  STD_LOGIC_VECTOR(31 downto 0);
+		 wd1	 : in  STD_LOGIC_VECTOR(31 downto 0);
+		 rd1 	 : out STD_LOGIC_VECTOR(31 downto 0);
+		 we2	 : in  STD_LOGIC;
+		 a2	 	 : in  STD_LOGIC_VECTOR(31 downto 0);
+		 wd2	 : in  STD_LOGIC_VECTOR(31 downto 0);
+		 rd2  	 : out STD_LOGIC_VECTOR(31 downto 0);
+		 we3	 : in  STD_LOGIC;
+		 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
+		 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
+		 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0));
 end;
 
+architecture behave of dmem is
 
-architecture struct of controller is
-	component maindec
-		port(op : in STD_LOGIC_VECTOR(5 downto 0);
-			memtoreg, memwrite : out STD_LOGIC;
-			branch             : out STD_LOGIC;
-			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
-			regdst, regwrite   : out STD_LOGIC;
-			jump               : out STD_LOGIC;
-			aluop              : out STD_LOGIC_VECTOR(1 downto 0);
-			branchNotEqual     : out STD_LOGIC);
-	end component;
-	component aludec
-		port(funct : in STD_LOGIC_VECTOR(5 downto 0);
-			aluop      : in  STD_LOGIC_VECTOR(1 downto 0);
-			alucontrol : out STD_LOGIC_VECTOR(2 downto 0));
-	end component;
-	signal aluop          : STD_LOGIC_VECTOR(1 downto 0);
-	signal branch         : STD_LOGIC;
-	signal branchNotEqual : STD_LOGIC;
-	signal tmp_memwrite : STD_LOGIC;
-	signal tmp_regwrite : STD_LOGIC;
 begin
-		md : maindec port map(op, memtoreg, tmp_memwrite, branch,
-			alusrc, regdst, tmp_regwrite, jump, aluop, branchNotEqual);
-		ad : aludec port map(funct, aluop, alucontrol);
-	
-	memwrite <= tmp_memwrite and not stall;
-	regwrite <= tmp_regwrite and not stall;
-	pcsrc <= (branch and zero) or (branchNotEqual and not zero);
+	process is
+		type ramtype is array (63 downto 0) of STD_LOGIC_VECTOR(31 downto 0);
+		variable mem: ramtype;
+	begin
+		-- read or write memory
+		loop
+			if clk'event and clk = '1' then
+				if (we1 = '1' and (((a1 /= a2) or (not we2)) and ((a1 /= a3) or (not we3)))) then 
+					mem(to_integer(a1(7 downto 2))) := wd1;
+				end if;
+				if (we2 = '1' and ((a2 /= a3) or (not we3))) then 
+					mem(to_integer(a2(7 downto 2))) := wd2;
+				end if;
+				if (we3 = '1') then
+					mem(to_integer(a3(7 downto 2))) := wd3;
+				end if;
+			end if;
+			rd1 <= mem(to_integer(a1(7 downto 2))); 
+			rd2 <= mem(to_integer(a2(7 downto 2))); 
+			rd3 <= mem(to_integer(a3(7 downto 2))); 			
+			wait on clk, a1, a2, a3;
+		end loop;
+		
+	end process;
 end;
 
 -- ==========================================================
@@ -200,90 +235,6 @@ begin
 end;
 
 -- ==========================================================
--- dmem.vhd
-
-library IEEE; 
-use IEEE.STD_LOGIC_1164.all; use STD.TEXTIO.all;
-use IEEE.NUMERIC_STD_UNSIGNED.all; 
-
-entity dmem is -- data memory
-	port(clk	 : in  STD_LOGIC;
-		 we1	 : in  STD_LOGIC;
-		 a1		 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 wd1	 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 rd1 	 : out STD_LOGIC_VECTOR(31 downto 0);
-		 we2	 : in  STD_LOGIC;
-		 a2	 	 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 wd2	 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 rd2  	 : out STD_LOGIC_VECTOR(31 downto 0);
-		 we3	 : in  STD_LOGIC;
-		 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
-		 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0);
-end;
-
-architecture behave of dmem is
-
-begin
-	process is
-		type ramtype is array (63 downto 0) of STD_LOGIC_VECTOR(31 downto 0);
-		variable mem: ramtype;
-	begin
-		-- read or write memory
-		loop
-			if clk'event and clk = '1' then
-				if (we1 = '1' and (((a1 /= a2) or (not we2)) and ((a1 /= a3) or (not we3)))) then 
-					mem(to_integer(a1(7 downto 2))) := wd1;
-				end if;
-				if (we2 = '1' and ((a2 /= a3) or (not we3))) then 
-					mem(to_integer(a2(7 downto 2))) := wd2;
-				end if;
-				if (we3 = '1') then
-					mem(to_integer(a3(7 downto 2))) := wd3;
-				end if;
-			end if;
-			rd1 <= mem(to_integer(a1(7 downto 2))); 
-			rd2 <= mem(to_integer(a2(7 downto 2))); 
-			rd3 <= mem(to_integer(a3(7 downto 2))); 
-			wait on clk, a;
-		end loop;
-		
-	end process;
-end;
-
--- ==========================================================
--- alu.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all; 
-use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity alu is 
-  port(a, b : in STD_LOGIC_VECTOR(31 downto 0);
-    alucontrol : in     STD_LOGIC_VECTOR(2 downto 0);
-    result     : buffer STD_LOGIC_VECTOR(31 downto 0);
-    zero       : out    STD_LOGIC);
-end;
-
-architecture behave of alu is
-  signal condinvb, sum : STD_LOGIC_VECTOR(31 downto 0);
-begin
-  condinvb <= not b when alucontrol(2) else b;
-  sum      <= a + condinvb + alucontrol(2);
-  
-  process(all) begin
-    case alucontrol(1 downto 0) is
-      when "00"   => result   <= a and b; 
-      when "01"   => result   <= a or b; 
-      when "10"   => result   <= sum; 
-      when "11"   => result   <= (0 => sum(31), others => '0'); 
-      when others => result <= (others => 'X'); 
-    end case;
-  end process;
-  
-  zero <= '1' when result = X"00000000" else '0';
-end;
-
--- ==========================================================
 -- hazardunit.vhd
 
 library IEEE; 
@@ -334,13 +285,13 @@ architecture test of hazardunit is
             stall2, stall3: out STD_LOGIC);      
   	end component;
 	component regstaller
-        port(writereg1    : in  STD_LOGIC;
-            instr1        : in  STD_LOGIC;
-            writereg2     : in  STD_LOGIC;
-            instr2        : in  STD_LOGIC;
-            writereg3     : in  STD_LOGIC;
-            instr3        : in  STD_LOGIC;
-            stall2, stall3: out STD_LOGIC);      
+        port(writereg1    : in  STD_LOGIC;  
+             instr1        : in  STD_LOGIC_VECTOR(31 downto 0);
+             writereg2     : in  STD_LOGIC;
+             instr2        : in  STD_LOGIC_VECTOR(31 downto 0);
+             writereg3     : in  STD_LOGIC;
+             instr3        : in  STD_LOGIC_VECTOR(31 downto 0);
+             stall2, stall3: out STD_LOGIC);      
   	end component;
     component flopr generic(width :    integer);
 		port(clk, reset               : in STD_LOGIC;
@@ -348,16 +299,9 @@ architecture test of hazardunit is
 		q : out STD_LOGIC_VECTOR(width-1 downto 0));
   	end component;
 
-	signal pc, pcnext, instr,
-	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
-
-	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
-
-	signal jump1: STD_LOGIC;
-	signal pcsrc1: STD_LOGIC;
-	signal regwrite: STD_LOGIC;
-	signal jump_stall2, mem_stall2, reg_stall2: STD_LOGIC;
-	signal jump_stall3, mem_stall3, reg_stall3: STD_LOGIC;
+	signal pcnext, instr, readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
+    signal jump_stall2, mem_stall2, reg_stall2: STD_LOGIC;
+    signal jump_stall3, mem_stall3, reg_stall3: STD_LOGIC;
 begin
     stall2 <= jump_stall2 or mem_stall2 or reg_stall2;
     stall3 <= jump_stall3 or mem_stall3 or reg_stall3 or stall2;
@@ -468,24 +412,6 @@ end process;
 end;
 
 -- ==========================================================
--- jumpstaller.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity jumpstaller is
-  port(jump1, pcsrc1: in STD_LOGIC;
-       jump2, pcsrc2: in STD_LOGIC;
-       jump3, pcsrc3: in STD_LOGIC;
-       stall2, stall3: out STD_LOGIC);
-end;
-
-architecture behave of jumpstaller is
-begin
-  stall2 <= jump1 or pcsrc1; 
-  stall3 <= jump2 or pcsrc2 or jump1 or pcsrc1; 
-end;
-
--- ==========================================================
 -- flopr.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all;  use IEEE.STD_LOGIC_ARITH.all;
@@ -505,6 +431,55 @@ begin
       q <= d;
     end if;
   end process;
+end;
+
+-- ==========================================================
+-- controller.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity controller is -- single cycle control decoder
+	port(op, funct : in STD_LOGIC_VECTOR(5 downto 0);
+		zero               : in  STD_LOGIC;
+		stall			   : in  STD_LOGIC;
+		memtoreg, memwrite : out STD_LOGIC;
+		pcsrc              : out STD_LOGIC;
+		alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
+		regdst, regwrite   : out STD_LOGIC;
+		jump               : out STD_LOGIC;
+		alucontrol         : out STD_LOGIC_VECTOR(2 downto 0));
+end;
+
+
+architecture struct of controller is
+	component maindec
+		port(op : in STD_LOGIC_VECTOR(5 downto 0);
+			memtoreg, memwrite : out STD_LOGIC;
+			branch             : out STD_LOGIC;
+			alusrc             : out STD_LOGIC_VECTOR(1 downto 0);
+			regdst, regwrite   : out STD_LOGIC;
+			jump               : out STD_LOGIC;
+			aluop              : out STD_LOGIC_VECTOR(1 downto 0);
+			branchNotEqual     : out STD_LOGIC);
+	end component;
+	component aludec
+		port(funct : in STD_LOGIC_VECTOR(5 downto 0);
+			aluop      : in  STD_LOGIC_VECTOR(1 downto 0);
+			alucontrol : out STD_LOGIC_VECTOR(2 downto 0));
+	end component;
+	signal aluop          : STD_LOGIC_VECTOR(1 downto 0);
+	signal branch         : STD_LOGIC;
+	signal branchNotEqual : STD_LOGIC;
+	signal tmp_memwrite : STD_LOGIC;
+	signal tmp_regwrite : STD_LOGIC;
+begin
+		md : maindec port map(op, memtoreg, tmp_memwrite, branch,
+			alusrc, regdst, tmp_regwrite, jump, aluop, branchNotEqual);
+		ad : aludec port map(funct, aluop, alucontrol);
+	
+	memwrite <= tmp_memwrite and not stall;
+	regwrite <= tmp_regwrite and not stall;
+	pcsrc <= (branch and zero) or (branchNotEqual and not zero);
 end;
 
 -- ==========================================================
@@ -542,6 +517,24 @@ begin
 	
 	(regwrite, regdst, alusrc, branch, memwrite,
 		memtoreg, jump, aluop(1 downto 0), branchNotEqual) <= controls;
+end;
+
+-- ==========================================================
+-- jumpstaller.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity jumpstaller is
+  port(jump1, pcsrc1: in STD_LOGIC;
+       jump2, pcsrc2: in STD_LOGIC;
+       jump3, pcsrc3: in STD_LOGIC;
+       stall2, stall3: out STD_LOGIC);
+end;
+
+architecture behave of jumpstaller is
+begin
+  stall2 <= jump1 or pcsrc1; 
+  stall3 <= jump2 or pcsrc2 or jump1 or pcsrc1; 
 end;
 
 -- ==========================================================
@@ -612,23 +605,6 @@ begin
 end;
 
 -- ==========================================================
--- mux2.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity mux2 is -- two-input multiplexer
-  generic(width: integer);
-  port(d0, d1: in  STD_LOGIC_VECTOR(width-1 downto 0);
-       s:      in  STD_LOGIC;
-       y:      out STD_LOGIC_VECTOR(width-1 downto 0));
-end;
-
-architecture behave of mux2 is
-begin
-  y <= d1 when s else d0;
-end;
-
--- ==========================================================
 -- regfile.vhd
 
 library IEEE; use IEEE.STD_LOGIC_1164.all; 
@@ -663,19 +639,16 @@ begin
   process(clk) begin
     if rising_edge(clk) then
        if clk'event and clk = '1' then
-				if (writeEn1 = '1' and (((wa1 /= wa2) or (not writeEn2)) and ((wa1 /= wa3) or (not writeEn3)))) then 
-					mem(to_integer(wa1)) := writedata1;
+				if (writeEn1 = '1' and (((wa1 /= wa2) or (writeEn2 = '0')) and ((wa1 /= wa3) or (writeEn3 = '0')))) then 
+					mem(to_integer(wa1)) <= writedata1;
 				end if;
-				if (writeEn2 = '1' and ((wa2 /= wa3) or (not writeEn3))) then 
-					mem(to_integer(wa2)) := writedata2;
+				if (writeEn2 = '1' and ((wa2 /= wa3) or (writeEn3 = '0'))) then 
+					mem(to_integer(wa2)) <= writedata2;
 				end if;
 				if (writeEn3 = '1') then
-					mem(to_integer(wa3)) := writedata3;
+					mem(to_integer(wa3)) :<= writedata3;
 				end if;
 			end if;
-			rd1 <= mem(to_integer(a1)); 
-			rd2 <= mem(to_integer(a2)); 
-			rd3 <= mem(to_integer(a3)); 
     end if;
   end process;
   process(all) begin
@@ -726,6 +699,234 @@ begin
   stall2 <= '1' when (op1 = "101011" and op2 = "100011" and basereg1 = basereg2 and offset1 = offset2) else '0';
   stall3 <= '1' when (op2 = "101011" and op3 = "100011" and basereg2 = basereg3 and offset2 = offset3) else '0';
 end; 
+
+-- ==========================================================
+-- regstaller.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+use IEEE.NUMERIC_STD_UNSIGNED.all;
+
+entity regstaller is
+  port(writereg1     : in  STD_LOGIC;
+       instr1        : in  STD_LOGIC_VECTOR(31 downto 0);
+       writereg2     : in  STD_LOGIC;
+       instr2        : in  STD_LOGIC_VECTOR(31 downto 0);
+       writereg3     : in  STD_LOGIC;
+       instr3        : in  STD_LOGIC_VECTOR(31 downto 0);
+       stall2, stall3: out STD_LOGIC); 
+end;
+
+architecture behave of regstaller is
+    signal dest1: STD_LOGIC_VECTOR(4 downto 0);
+    signal srcA2: STD_LOGIC_VECTOR(4 downto 0);
+    signal srcB2: STD_LOGIC_VECTOR(4 downto 0);
+    signal dest2: STD_LOGIC_VECTOR(4 downto 0);
+    signal srcA3: STD_LOGIC_VECTOR(4 downto 0);
+    signal srcB3: STD_LOGIC_VECTOR(4 downto 0);
+begin
+
+    dest1 <= instr1(15 downto 11) when instr1(31 downto 26) = "000000" else instr1(20 downto 16);
+    srcA2 <= instr2(26 downto 21);
+    srcB2 <= instr2(20 downto 16) when instr2(31 downto 26) = "000000" else instr2(26 downto 21);
+
+    dest2 <= instr2(15 downto 11) when instr2(31 downto 26) = "000000" else instr2(20 downto 16);
+    srcA3 <= instr3(26 downto 21);
+    srcB3 <= instr3(20 downto 16) when instr3(31 downto 26) = "000000" else instr3(26 downto 21);
+
+    stall2 <= '1' when (writereg1 and (dest1 = srcA2 or dest1 = srcB2)) else '0';
+    stall3 <= '1' when (writereg2 and (dest2 = srcA3 or dest2 = srcB3)) else '0';
+end;
+
+-- ==========================================================
+-- mux2.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity mux2 is -- two-input multiplexer
+  generic(width: integer);
+  port(d0, d1: in  STD_LOGIC_VECTOR(width-1 downto 0);
+       s:      in  STD_LOGIC;
+       y:      out STD_LOGIC_VECTOR(width-1 downto 0));
+end;
+
+architecture behave of mux2 is
+begin
+  y <= d1 when s else d0;
+end;
+
+-- ==========================================================
+-- sl2.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity sl2 is -- shift left by 2
+  port(a: in  STD_LOGIC_VECTOR(31 downto 0);
+       y: out STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture behave of sl2 is
+begin
+  y <= a(29 downto 0) & "00";
+end;
+
+-- ==========================================================
+-- signext.vhd
+
+library IEEE; use IEEE.STD_LOGIC_1164.all;
+
+entity signext is -- sign extender
+  port(a: in  STD_LOGIC_VECTOR(15 downto 0);
+       y: out STD_LOGIC_VECTOR(31 downto 0));
+end;
+
+architecture behave of signext is
+begin
+  y <= X"ffff" & a when a(15) else X"0000" & a; 
+end;
+
+-- ==========================================================
+-- top.vhd
+
+library IEEE; 
+use IEEE.STD_LOGIC_1164.all; use IEEE.NUMERIC_STD_UNSIGNED.all;
+
+entity top is -- top-level design for testing
+	port(clk, reset: in STD_LOGIC;
+		writedata1, dataadr1: buffer STD_LOGIC_VECTOR(31 downto 0);
+		writedata2, dataadr2: buffer STD_LOGIC_VECTOR(31 downto 0);
+		writedata3, dataadr3: buffer STD_LOGIC_VECTOR(31 downto 0);
+		memwrite1          : buffer STD_LOGIC;
+		memwrite2          : buffer STD_LOGIC;
+		memwrite3          : buffer STD_LOGIC);
+end;
+
+architecture test of top is
+	component mips 
+		port(clk, reset: in STD_LOGIC;
+			pc               : in STD_LOGIC_VECTOR(31 downto 0);
+			instr            : in  STD_LOGIC_VECTOR(31 downto 0);
+			stall			 : in  STD_LOGIC;			
+			memwrite         : out STD_LOGIC;
+			aluout			 : out STD_LOGIC_VECTOR(31 downto 0);
+			writedata		 : in  STD_LOGIC_VECTOR(31 downto 0);
+			readdata         : in  STD_LOGIC_VECTOR(31 downto 0);
+			pcnext           : out STD_LOGIC_VECTOR(31 downto 0);
+			regwrite         : out STD_LOGIC;
+			writereg         : out STD_LOGIC_VECTOR(4 downto 0);
+			result	         : out STD_LOGIC_VECTOR(31 downto 0);
+			srca             : in  STD_LOGIC_VECTOR(31 downto 0);
+			jump             : buffer  STD_LOGIC;
+			pcsrc            : buffer  STD_LOGIC);
+	end component;
+	component hazardunit 
+		port(clk, reset: in STD_LOGIC;
+			pc               : out  STD_LOGIC_VECTOR(31 downto 0);
+			pc1              : in   STD_LOGIC_VECTOR(31 downto 0);
+			instr1           : in   STD_LOGIC_VECTOR(31 downto 0);
+			jump1            : in   STD_LOGIC;
+			pcsrc1           : in   STD_LOGIC;
+			writereg1        : in   STD_LOGIC;
+			pcaddr1          : out  STD_LOGIC_VECTOR(31 downto 0);
+			pc2              : in   STD_LOGIC_VECTOR(31 downto 0);
+			instr2           : in   STD_LOGIC_VECTOR(31 downto 0);
+			jump2            : in   STD_LOGIC;
+			pcsrc2           : in   STD_LOGIC;
+			writereg2        : in   STD_LOGIC;
+			pcaddr2          : out  STD_LOGIC_VECTOR(31 downto 0);
+			stall2           : buffer  STD_LOGIC;
+			pc3              : in   STD_LOGIC_VECTOR(31 downto 0);
+			instr3           : in   STD_LOGIC_VECTOR(31 downto 0);
+			jump3            : in   STD_LOGIC;
+			pcsrc3           : in   STD_LOGIC;
+			writereg3        : in   STD_LOGIC;
+			pcaddr3          : out  STD_LOGIC_VECTOR(31 downto 0);
+			stall3           : out  STD_LOGIC);
+	end component;
+	component flopr generic(width :    integer);
+		port(clk, reset               : in STD_LOGIC;
+		d : in  STD_LOGIC_VECTOR(width-1 downto 0);
+		q : out STD_LOGIC_VECTOR(width-1 downto 0));
+  	end component;
+	component imem
+		port(a: in STD_LOGIC_VECTOR(5 downto 0);
+			rd1: out STD_LOGIC_VECTOR(31 downto 0);
+			rd2: out STD_LOGIC_VECTOR(31 downto 0);
+			rd3: out STD_LOGIC_VECTOR(31 downto 0));
+	end component;
+	component dmem
+		port(clk	 : in  STD_LOGIC; 
+			 we1	 : in  STD_LOGIC;
+			 a1		 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 wd1	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 rd1 	 : out STD_LOGIC_VECTOR(31 downto 0);
+			 we2	 : in  STD_LOGIC;
+			 a2	 	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 wd2	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 rd2  	 : out STD_LOGIC_VECTOR(31 downto 0);
+			 we3	 : in  STD_LOGIC;
+			 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
+			 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0));
+	end component;
+	component regfile
+		port(clk : in STD_LOGIC;
+			 writeEn1     	   : in  STD_LOGIC;
+			 ra1A, ra1B, wa1   : in  STD_LOGIC_VECTOR(4 downto 0);
+			 writedata1   	   : in  STD_LOGIC_VECTOR(31 downto 0);
+			 read1A, read1B    : out STD_LOGIC_VECTOR(31 downto 0);
+			 writeEn2     	   : in  STD_LOGIC;
+			 ra2A, ra2B, wa2   : in  STD_LOGIC_VECTOR(4 downto 0);
+			 writedata2   	   : in  STD_LOGIC_VECTOR(31 downto 0);
+			 read2A, read2B    : out STD_LOGIC_VECTOR(31 downto 0);
+			 writeEn3     	   : in  STD_LOGIC;
+			 ra3A, ra3B, wa3   : in  STD_LOGIC_VECTOR(4 downto 0);
+			 writedata3   	   : in  STD_LOGIC_VECTOR(31 downto 0);
+			 read3A, read3B    : out STD_LOGIC_VECTOR(31 downto 0));  
+  	end component;
+	signal pc: STD_LOGIC_VECTOR(31 downto 0);
+
+	signal regwrite1, pcsrc1, jump1: STD_LOGIC;
+	signal instr1, pcaddr1, readdata1, pc1, result1, srca1: STD_LOGIC_VECTOR(31 downto 0);
+	signal writereg1: STD_LOGIC_VECTOR(4 downto 0);
+	
+	signal regwrite2, pcsrc2, jump2, stall2: STD_LOGIC;
+	signal instr2, pcaddr2, readdata2, pc2, result2, srca2: STD_LOGIC_VECTOR(31 downto 0);
+	signal writereg2: STD_LOGIC_VECTOR(4 downto 0);
+
+	signal regwrite3, pcsrc3, jump3, stall3: STD_LOGIC;
+	signal instr3, pcaddr3, readdata3, pc3, result3, srca3: STD_LOGIC_VECTOR(31 downto 0);
+	signal writereg3: STD_LOGIC_VECTOR(4 downto 0);
+begin
+	-- instantiate processor and memories
+	mips1: mips port map(clk, reset, pcaddr1, instr1, '0', memwrite1, dataadr1,
+		writedata1, readdata1, pc1, regwrite1, writereg1, result1, srca1, jump1, pcsrc1);
+	
+	mips2: mips port map(clk, reset, pcaddr2, instr2, stall2, memwrite2, dataadr2,
+		writedata2, readdata2, pc2, regwrite2, writereg2, result2, srca2, jump2, pcsrc2);
+	
+	mips3: mips port map(clk, reset, pcaddr3, instr3, stall3, memwrite3, dataadr3,
+		writedata3, readdata3, pc3, regwrite3, writereg3, result3, srca3, jump3, pcsrc3);
+
+	
+	imem1: imem port map(pc(7 downto 2), instr1, instr2, instr3);
+
+	dmem1: dmem port map(clk, memwrite1, dataadr1, writedata1, readdata1,
+							  memwrite2, dataadr2, writedata2, readdata2,
+							  memwrite3, dataadr3, writedata3, readdata3);
+	
+
+	rf: regfile port map(clk, 
+		regwrite1, instr1(25 downto 21), instr1(20 downto 16), writereg1, result1, srca1, writedata1,
+		regwrite2, instr2(25 downto 21), instr2(20 downto 16), writereg2, result2, srca2, writedata2,
+		regwrite3, instr3(25 downto 21), instr3(20 downto 16), writereg3, result3, srca3, writedata3);
+
+	hazard: hazardunit port map(
+		clk, reset, pc, 
+		pc1, instr1, jump1, pcsrc1, regwrite1, pcaddr1, 
+		pc2, instr2, jump2, pcsrc2, regwrite2, pcaddr2, stall2, 
+		pc3, instr3, jump3, pcsrc3, regwrite3, pcaddr3, stall3)
+
+end;
 
 -- ==========================================================
 -- mux4.vhd
@@ -823,212 +1024,5 @@ begin
       end if;
     end if;
   end process;
-end;
-
--- ==========================================================
--- top.vhd
-
-library IEEE; 
-use IEEE.STD_LOGIC_1164.all; use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity top is -- top-level design for testing
-	port(clk, reset: in STD_LOGIC;
-		writedata1, dataadr1: buffer STD_LOGIC_VECTOR(31 downto 0);
-		writedata2, dataadr2: buffer STD_LOGIC_VECTOR(31 downto 0);
-		writedata3, dataadr3: buffer STD_LOGIC_VECTOR(31 downto 0);
-		memwrite1          : buffer STD_LOGIC);
-		memwrite2          : buffer STD_LOGIC);
-		memwrite3          : buffer STD_LOGIC);
-end;
-
-architecture test of top is
-	component mips 
-		port(clk, reset: in STD_LOGIC;
-			pc               : in STD_LOGIC_VECTOR(31 downto 0);
-			instr            : in  STD_LOGIC_VECTOR(31 downto 0);
-			stall			 : in  STD_LOGIC;			
-			memwrite         : out STD_LOGIC;
-			aluout			 : out STD_LOGIC_VECTOR(31 downto 0);
-			writedata		 : in  STD_LOGIC_VECTOR(31 downto 0);
-			readdata         : in  STD_LOGIC_VECTOR(31 downto 0);
-			pcnext           : out STD_LOGIC_VECTOR(31 downto 0);
-			regwrite         : out STD_LOGIC;
-			writereg         : out STD_LOGIC_VECTOR(4 downto 0);
-			result	         : out STD_LOGIC_VECTOR(31 downto 0);
-			srca             : in  STD_LOGIC_VECTOR(31 downto 0);
-			jump             : buffer  STD_LOGIC;
-			pcsrc            : buffer  STD_LOGIC);
-	end component;
-	component hazardunit 
-		port(clk, reset: in STD_LOGIC;
-			pc               : out  STD_LOGIC_VECTOR(31 downto 0);
-			pc1              : in   STD_LOGIC_VECTOR(31 downto 0);
-			instr1           : in   STD_LOGIC_VECTOR(31 downto 0);
-			jump1            : in   STD_LOGIC;
-			pcsrc1           : in   STD_LOGIC;
-			writereg1        : in   STD_LOGIC;
-			pcaddr1          : out  STD_LOGIC_VECTOR(31 downto 0);
-			pc2              : in   STD_LOGIC_VECTOR(31 downto 0);
-			instr2           : in   STD_LOGIC_VECTOR(31 downto 0);
-			jump2            : in   STD_LOGIC;
-			pcsrc2           : in   STD_LOGIC;
-			writereg2        : in   STD_LOGIC;
-			pcaddr2          : out  STD_LOGIC_VECTOR(31 downto 0);
-			stall2           : buffer  STD_LOGIC;
-			pc3              : in   STD_LOGIC_VECTOR(31 downto 0);
-			instr3           : in   STD_LOGIC_VECTOR(31 downto 0);
-			jump3            : in   STD_LOGIC;
-			pcsrc3           : in   STD_LOGIC;
-			writereg3        : in   STD_LOGIC;
-			pcaddr3          : out  STD_LOGIC_VECTOR(31 downto 0);
-			stall3           : out  STD_LOGIC);
-	end component;
-	component flopr generic(width :    integer);
-		port(clk, reset               : in STD_LOGIC;
-		d : in  STD_LOGIC_VECTOR(width-1 downto 0);
-		q : out STD_LOGIC_VECTOR(width-1 downto 0));
-  	end component;
-	component imem
-		port(a: in STD_LOGIC_VECTOR(5 downto 0);
-			rd1: out STD_LOGIC_VECTOR(31 downto 0);
-			rd2: out STD_LOGIC_VECTOR(31 downto 0);
-			rd3: out STD_LOGIC_VECTOR(31 downto 0));
-	end component;
-	component dmem
-		port(clk	 : in  STD_LOGIC; 
-			 we1	 : in  STD_LOGIC;
-			 a1		 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 wd1	 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 rd1 	 : out STD_LOGIC_VECTOR(31 downto 0);
-			 we2	 : in  STD_LOGIC;
-			 a2	 	 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 wd2	 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 rd2  	 : out STD_LOGIC_VECTOR(31 downto 0);
-			 we3	 : in  STD_LOGIC;
-			 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0);
-	end component;
-	component regfile
-		port(clk : in STD_LOGIC;
-			 writeEn1     	   : in  STD_LOGIC;
-			 ra1A, ra1B, wa1   : in  STD_LOGIC_VECTOR(4 downto 0);
-			 writedata1   	   : in  STD_LOGIC_VECTOR(31 downto 0);
-			 read1A, read1B    : out STD_LOGIC_VECTOR(31 downto 0);
-			 writeEn2     	   : in  STD_LOGIC;
-			 ra2A, ra2B, wa2   : in  STD_LOGIC_VECTOR(4 downto 0);
-			 writedata2   	   : in  STD_LOGIC_VECTOR(31 downto 0);
-			 read2A, read2B    : out STD_LOGIC_VECTOR(31 downto 0);
-			 writeEn3     	   : in  STD_LOGIC;
-			 ra3A, ra3B, wa3   : in  STD_LOGIC_VECTOR(4 downto 0);
-			 writedata3   	   : in  STD_LOGIC_VECTOR(31 downto 0);
-			 read3A, read3B    : out STD_LOGIC_VECTOR(31 downto 0));  
-  	end component;
-	signal pc, pcnext, instr1, instr2, instr3,
-	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
-
-	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
-
-	signal jump1: STD_LOGIC;
-	signal pcsrc1: STD_LOGIC;
-	signal regwrite: STD_LOGIC;
-
-begin
-	-- instantiate processor and memories
-	mips1: mips port map(clk, reset, pcaddr1, instr1, '0', memwrite1, dataadr1,
-		writedata1, readdata1, pc1, regwrite1, writereg1, result1, srca1, jump1, pcsrc1);
-	
-	mips2: mips port map(clk, reset, pcaddr2, instr2, stall2, memwrite2, dataadr2,
-		writedata2, readdata2, pc2, regwrite2, writereg2, result2, srca2, jump2, pcsrc2);
-	
-	mips3: mips port map(clk, reset, pcaddr3, instr3, stall3, memwrite3, dataadr3,
-		writedata3, readdata3, pc3, regwrite3, writereg3, result3, srca3, jump3, pcsrc3);
-
-	
-	imem1: imem port map(pc(7 downto 2), instr1, instr2, instr3);
-
-	dmem1: dmem port map(clk, memwrite1, dataadr1, writedata1, readdata1,
-							  memwrite2, dataadr2, writedata2, readdata2,
-							  memwrite3, dataadr3, writedata3, readdata3);
-	
-
-	rf: regfile port map(clk, 
-		regwrite1, instr1(25 downto 21), instr1(20 downto 16), writereg1, result1, srca1, writedata1,
-		regwrite2, instr2(25 downto 21), instr2(20 downto 16), writereg2, result2, srca2, writedata2,
-		regwrite3, instr3(25 downto 21), instr3(20 downto 16), writereg3, result3, srca3, writedata3);
-
-	hazard: hazardunit port map(
-		clk, reset, pc, 
-		pc1, instr1, jump1, pcsrc1, writereg1, pcaddr1, 
-		pc2, instr2, jump2, pcsrc2, writereg2, pcaddr2, stall2, 
-		pc3, instr3, jump3, pcsrc3, writereg3, pcaddr3, stall3)
-
-end;
-
--- ==========================================================
--- signext.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity signext is -- sign extender
-  port(a: in  STD_LOGIC_VECTOR(15 downto 0);
-       y: out STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture behave of signext is
-begin
-  y <= X"ffff" & a when a(15) else X"0000" & a; 
-end;
-
--- ==========================================================
--- regstaller.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-use IEEE.NUMERIC_STD_UNSIGNED.all;
-
-entity regstaller is
-  port(writereg1     : in  STD_LOGIC;
-       instr1        : in  STD_LOGIC_VECTOR(31 downto 0);
-       writereg2     : in  STD_LOGIC;
-       instr2        : in  STD_LOGIC_VECTOR(31 downto 0);
-       writereg3     : in  STD_LOGIC;
-       instr3        : in  STD_LOGIC_VECTOR(31 downto 0);
-       stall2, stall3: out STD_LOGIC); 
-end;
-
-architecture behave of regstaller is
-    signal dest1: STD_LOGIC_VECTOR(4 downto 0);
-    signal srcA2: STD_LOGIC_VECTOR(4 downto 0);
-    signal srcB2: STD_LOGIC_VECTOR(4 downto 0);
-    signal dest2: STD_LOGIC_VECTOR(4 downto 0);
-    signal srcA3: STD_LOGIC_VECTOR(4 downto 0);
-    signal srcB3: STD_LOGIC_VECTOR(4 downto 0);
-begin
-
-    dest1 <= instr1(15 downto 11) when instr1(31 downto 26) = "000000" else instr1(20 downto 16);
-    srcA2 <= instr2(26 downto 21);
-    srcB2 <= instr2(20 downto 16) when instr2(31 downto 26) = "000000" else instr2(26 downto 21);
-
-    dest2 <= instr2(15 downto 11) when instr2(31 downto 26) = "000000" else instr2(20 downto 16);
-    srcA3 <= instr3(26 downto 21);
-    srcB3 <= instr3(20 downto 16) when instr3(31 downto 26) = "000000" else instr3(26 downto 21);
-
-    stall2 <= '1' when (writereg1 and (dest1 = srcA2 or dest1 = srcB2)) else '0';
-    stall3 <= '1' when (writereg2 and (dest2 = srcA3 or dest2 = srcB3)) else '0';
-end;
-
--- ==========================================================
--- sl2.vhd
-
-library IEEE; use IEEE.STD_LOGIC_1164.all;
-
-entity sl2 is -- shift left by 2
-  port(a: in  STD_LOGIC_VECTOR(31 downto 0);
-       y: out STD_LOGIC_VECTOR(31 downto 0));
-end;
-
-architecture behave of sl2 is
-begin
-  y <= a(29 downto 0) & "00";
 end;
 

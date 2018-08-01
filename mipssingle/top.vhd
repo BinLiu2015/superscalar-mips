@@ -6,8 +6,8 @@ entity top is -- top-level design for testing
 		writedata1, dataadr1: buffer STD_LOGIC_VECTOR(31 downto 0);
 		writedata2, dataadr2: buffer STD_LOGIC_VECTOR(31 downto 0);
 		writedata3, dataadr3: buffer STD_LOGIC_VECTOR(31 downto 0);
-		memwrite1          : buffer STD_LOGIC);
-		memwrite2          : buffer STD_LOGIC);
+		memwrite1          : buffer STD_LOGIC;
+		memwrite2          : buffer STD_LOGIC;
 		memwrite3          : buffer STD_LOGIC);
 end;
 
@@ -77,7 +77,7 @@ architecture test of top is
 			 we3	 : in  STD_LOGIC;
 			 a3		 : in  STD_LOGIC_VECTOR(31 downto 0);
 			 wd3	 : in  STD_LOGIC_VECTOR(31 downto 0);
-			 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0);
+			 rd3 	 : out STD_LOGIC_VECTOR(31 downto 0));
 	end component;
 	component regfile
 		port(clk : in STD_LOGIC;
@@ -94,15 +94,19 @@ architecture test of top is
 			 writedata3   	   : in  STD_LOGIC_VECTOR(31 downto 0);
 			 read3A, read3B    : out STD_LOGIC_VECTOR(31 downto 0));  
   	end component;
-	signal pc, pcnext, instr1, instr2, instr3,
-	readdata, result, srca: STD_LOGIC_VECTOR(31 downto 0);
+	signal pc: STD_LOGIC_VECTOR(31 downto 0);
 
-	signal writereg: STD_LOGIC_VECTOR(4 downto 0);
+	signal regwrite1, pcsrc1, jump1: STD_LOGIC;
+	signal instr1, pcaddr1, readdata1, pc1, result1, srca1: STD_LOGIC_VECTOR(31 downto 0);
+	signal writereg1: STD_LOGIC_VECTOR(4 downto 0);
+	
+	signal regwrite2, pcsrc2, jump2, stall2: STD_LOGIC;
+	signal instr2, pcaddr2, readdata2, pc2, result2, srca2: STD_LOGIC_VECTOR(31 downto 0);
+	signal writereg2: STD_LOGIC_VECTOR(4 downto 0);
 
-	signal jump1: STD_LOGIC;
-	signal pcsrc1: STD_LOGIC;
-	signal regwrite: STD_LOGIC;
-
+	signal regwrite3, pcsrc3, jump3, stall3: STD_LOGIC;
+	signal instr3, pcaddr3, readdata3, pc3, result3, srca3: STD_LOGIC_VECTOR(31 downto 0);
+	signal writereg3: STD_LOGIC_VECTOR(4 downto 0);
 begin
 	-- instantiate processor and memories
 	mips1: mips port map(clk, reset, pcaddr1, instr1, '0', memwrite1, dataadr1,
@@ -129,8 +133,8 @@ begin
 
 	hazard: hazardunit port map(
 		clk, reset, pc, 
-		pc1, instr1, jump1, pcsrc1, writereg1, pcaddr1, 
-		pc2, instr2, jump2, pcsrc2, writereg2, pcaddr2, stall2, 
-		pc3, instr3, jump3, pcsrc3, writereg3, pcaddr3, stall3)
+		pc1, instr1, jump1, pcsrc1, regwrite1, pcaddr1, 
+		pc2, instr2, jump2, pcsrc2, regwrite2, pcaddr2, stall2, 
+		pc3, instr3, jump3, pcsrc3, regwrite3, pcaddr3, stall3)
 
 end;

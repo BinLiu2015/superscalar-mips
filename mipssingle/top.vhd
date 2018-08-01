@@ -135,6 +135,6 @@ begin
 		clk, reset, pc, 
 		pc1, instr1, jump1, pcsrc1, regwrite1, pcaddr1, 
 		pc2, instr2, jump2, pcsrc2, regwrite2, pcaddr2, stall2, 
-		pc3, instr3, jump3, pcsrc3, regwrite3, pcaddr3, stall3)
+		pc3, instr3, jump3, pcsrc3, regwrite3, pcaddr3, stall3);
 
 end;

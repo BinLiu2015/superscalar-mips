@@ -28,6 +28,6 @@ begin
     srcA3 <= instr3(26 downto 21);
     srcB3 <= instr3(20 downto 16) when instr3(31 downto 26) = "000000" else instr3(26 downto 21);
 
-    stall2 <= '1' when (writereg1 and (dest1 = srcA2 or dest1 = srcB2)) else '0';
-    stall3 <= '1' when (writereg2 and (dest2 = srcA3 or dest2 = srcB3)) else '0';
+    stall2 <= '1' when (writereg1 = '1' and (dest1 = srcA2 or dest1 = srcB2)) else '0';
+    stall3 <= '1' when (writereg2 = '1' and (dest2 = srcA3 or dest2 = srcB3)) else '0';
 end;

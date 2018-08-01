@@ -37,7 +37,7 @@ begin
 					mem(to_integer(wa2)) <= writedata2;
 				end if;
 				if (writeEn3 = '1') then
-					mem(to_integer(wa3)) :<= writedata3;
+					mem(to_integer(wa3)) <= writedata3;
 				end if;
 			end if;
     end if;

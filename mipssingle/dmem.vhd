@@ -28,10 +28,10 @@ begin
 		-- read or write memory
 		loop
 			if clk'event and clk = '1' then
-				if (we1 = '1' and (((a1 /= a2) or (not we2)) and ((a1 /= a3) or (not we3)))) then 
+				if (we1 = '1' and (((a1 /= a2) or (we2 = '0')) and ((a1 /= a3) or (we3 = '0')))) then 
 					mem(to_integer(a1(7 downto 2))) := wd1;
 				end if;
-				if (we2 = '1' and ((a2 /= a3) or (not we3))) then 
+				if (we2 = '1' and ((a2 /= a3) or (we3 = '0'))) then 
 					mem(to_integer(a2(7 downto 2))) := wd2;
 				end if;
 				if (we3 = '1') then
